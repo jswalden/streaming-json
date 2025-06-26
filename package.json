@@ -1,0 +1,79 @@
+{
+  "name": "@jswalden/streaming-json",
+  "description": "Streaming JSON parsing and stringification for JavaScript/TypeScript",
+  "author": {
+    "name": "Jeff Walden",
+    "email": "jwalden+code@mit.edu",
+    "url": "https://whereswalden.com"
+  },
+  "version": "0.1.0",
+  "keywords": [
+    "streaming",
+    "incremental",
+    "JSON",
+    "stringify",
+    "stringification",
+    "parse",
+    "parsing",
+    "ECMAScript",
+    "reviver",
+    "toJSON"
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/jswalden/streaming-json",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      },
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "postinstall": "husky",
+    "test": "vitest --run",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build": "rimraf dist && yarn build:esm && yarn build:cjs",
+    "lint:raw": "eslint",
+    "lint": "yarn lint:raw .",
+    "knip": "knip"
+  },
+  "lint-staged": {
+    "*.{json,md,mjs,ts,yaml}": [
+      "yarn lint:raw --fix"
+    ]
+  },
+  "engines": {
+    "node": "^18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "type-testing": "~0.2.0"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "~5.0.0",
+    "@types/node": "~24.0.3",
+    "eslint": "~9.29.0",
+    "eslint-plugin-n": "~17.20.0",
+    "husky": "~9.1.7",
+    "knip": "~5.61.2",
+    "lint-staged": "~16.1.2",
+    "rimraf": "~6.0.1",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "~8.34.1",
+    "vitest": "~3.2.4"
+  },
+  "packageManager": "yarn@4.9.2"
+}

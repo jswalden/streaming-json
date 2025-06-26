@@ -1,0 +1,29 @@
+{
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/__tests__/*", "src/**/__mocks__/*"],
+  "compilerOptions": {
+    "paths": {
+      "*": ["./node_modules/*"]
+    },
+    "module": "nodenext",
+    "target": "es2020",
+    "noImplicitAny": true,
+    "moduleResolution": "nodenext",
+    "sourceMap": true,
+    "declaration": true,
+    "importHelpers": false,
+    "listFiles": false,
+    "traceResolution": false,
+    "pretty": true,
+    "lib": ["es2020"],
+    "strict": true,
+    "alwaysStrict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+  },
+  "compileOnSave": true,
+}
