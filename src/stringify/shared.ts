@@ -20,6 +20,7 @@ import { ExtractBigIntData } from "../stdlib/bigint.js";
 import { ExtractBooleanData } from "../stdlib/boolean.js";
 import { ToNumber } from "../stdlib/number.js";
 import { ReflectApply } from "../stdlib/reflect.js";
+import { SetAdd, SetHas } from "../stdlib/set.js";
 import { ToString } from "../stdlib/string.js";
 
 /**
@@ -56,10 +57,15 @@ export type Replacer = ReplacerPropertyList | ReplacerFunction;
 
 function toPropertyList(array: ReplacerPropertyList): PropertyList {
   const propertyList: string[] = [];
+  const set = new Set<string>();
   const len = array.length;
   for (let k = 0; k < len; k++) {
-    const v = array[k];
-    Push(propertyList, typeof v === "number" ? ToString(v) : v);
+    let v = array[k];
+    v = typeof v === "number" ? ToString(v) : v;
+    if (!SetHas(set, v)) {
+      SetAdd(set, v);
+      Push(propertyList, v);
+    }
   }
   return propertyList;
 }
