@@ -1,5 +1,6 @@
 import type { Equal, Expect } from "type-testing";
 import { IsArray, Pop, Push } from "../stdlib/array.js";
+import { LengthOfArrayLike } from "../stdlib/length.js";
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
@@ -758,7 +759,7 @@ function InternalizeJSONProperty<
   if (val !== null && typeof val === "object") {
     const isArray = IsArray(val);
     if (isArray) {
-      const len = val.length;
+      const len = LengthOfArrayLike(val);
       for (let i = 0; i < len; i++) {
         const newElement = InternalizeJSONProperty(val, ToString(i), reviver);
         // Intentionally ignore deletion/definition returning false, per spec
