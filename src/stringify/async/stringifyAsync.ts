@@ -2,6 +2,7 @@ import type { Equal, Expect } from "type-testing";
 import { EmitterBase, Quantum, type Replacer, type StringifiableValue } from "../shared.js";
 import { IsArray } from "../../stdlib/array.js";
 import { JSONStringify } from "../../stdlib/json-stringify.js";
+import { LengthOfArrayLike } from "../../stdlib/length.js";
 import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
 
 // It's not possible to transform a sync implementation into an async/await
@@ -65,7 +66,7 @@ class AsyncStreamingJSONEmitter extends EmitterBase {
   private async serializeArray(array: readonly unknown[]): Promise<void> {
     this.pushAcyclicStack(array);
 
-    const len = array.length;
+    const len = LengthOfArrayLike(array);
     if (len === 0) {
       await this.emit("[]");
     } else {

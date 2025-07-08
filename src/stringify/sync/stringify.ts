@@ -2,6 +2,7 @@ import type { Equal, Expect } from "type-testing";
 import { EmitterBase, Quantum, type Replacer, type StringifiableValue } from "../shared.js";
 import { IsArray } from "../../stdlib/array.js";
 import { JSONStringify } from "../../stdlib/json-stringify.js";
+import { LengthOfArrayLike } from "../../stdlib/length.js";
 import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
 
 /** A class managing state incrementally sync-emitting JSON stringification. */
@@ -62,7 +63,7 @@ class StreamingJSONEmitter extends EmitterBase {
   private serializeArray(array: readonly unknown[]): void {
     this.pushAcyclicStack(array);
 
-    const len = array.length;
+    const len = LengthOfArrayLike(array);
     if (len === 0) {
       this.emit("[]");
     } else {
