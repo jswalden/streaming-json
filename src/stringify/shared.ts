@@ -18,6 +18,7 @@
 import { ArrayContains, Pop, Push } from "../stdlib/array.js";
 import { ExtractBigIntData } from "../stdlib/bigint.js";
 import { ExtractBooleanData } from "../stdlib/boolean.js";
+import { LengthOfArrayLike } from "../stdlib/length.js";
 import { ToNumber } from "../stdlib/number.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { SetAdd, SetHas } from "../stdlib/set.js";
@@ -58,7 +59,7 @@ export type Replacer = ReplacerPropertyList | ReplacerFunction;
 function toPropertyList(array: ReplacerPropertyList): PropertyList {
   const propertyList: string[] = [];
   const set = new Set<string>();
-  const len = array.length;
+  const len = LengthOfArrayLike(array);
   for (let k = 0; k < len; k++) {
     let v = array[k];
     v = typeof v === "number" ? ToString(v) : v;
