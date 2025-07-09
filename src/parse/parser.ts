@@ -1,5 +1,8 @@
 import type { Equal, Expect } from "type-testing";
-import { DefineDataProperty, DeleteProperty, IsArray, EnumerableOwnPropertyKeys, Pop, Push, ReflectApply, StringFromCharCode, StringSlice, ToString } from "../utils/stdlib.js";
+import { IsArray, Pop, Push } from "../stdlib/array.js";
+import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
+import { ReflectApply } from "../stdlib/reflect.js";
+import { StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -516,7 +519,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       case "finish-object-member": {
         const objectInfo = stack[stack.length - 1] as [ParseState, PartialObjectAndPendingProperty];
         const [partialObj, pendingProperty] = objectInfo[1];
-        DefineDataProperty(partialObj, pendingProperty, value);
+        CreateDataProperty(partialObj, pendingProperty, value);
 
         const punct = yield* advanceAfterObjectEntry();
         if (punct === "}") {
@@ -763,7 +766,7 @@ function InternalizeJSONProperty<
         if (typeof newElement === "undefined")
           DeleteProperty(val, i);
         else
-          DefineDataProperty(val, i, newElement);
+          CreateDataProperty(val, i, newElement);
       }
     } else {
       const keys = EnumerableOwnPropertyKeys(val);
@@ -775,7 +778,7 @@ function InternalizeJSONProperty<
         if (typeof newElement === "undefined")
           DeleteProperty(val, p);
         else
-          DefineDataProperty(val, p, newElement);
+          CreateDataProperty(val, p, newElement);
       }
     }
   }

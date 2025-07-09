@@ -1,6 +1,8 @@
 import type { Equal, Expect } from "type-testing";
 import { EmitterBase, Quantum, type Replacer, type StringifiableValue } from "../shared.js";
-import { IsArray, JSONStringify, EnumerableOwnPropertyKeys } from "../../utils/stdlib.js";
+import { IsArray } from "../../stdlib/array.js";
+import { JSONStringify } from "../../stdlib/json-stringify.js";
+import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
 
 /** A class managing state incrementally sync-emitting JSON stringification. */
 class StreamingJSONEmitter extends EmitterBase {

@@ -15,7 +15,12 @@
 // And for array elements and top-level values we check for `undefined` and emit
 // `null` if so, otherwise emit the preprocessed value.
 
-import { ArrayContains, ExtractBigIntData, ExtractBooleanData, Pop, Push, ReflectApply, ToNumber, ToString } from "../utils/stdlib.js";
+import { ArrayContains, Pop, Push } from "../stdlib/array.js";
+import { ExtractBigIntData } from "../stdlib/bigint.js";
+import { ExtractBooleanData } from "../stdlib/boolean.js";
+import { ToNumber } from "../stdlib/number.js";
+import { ReflectApply } from "../stdlib/reflect.js";
+import { ToString } from "../stdlib/string.js";
 
 /**
  * The type of all values that can be stringified.

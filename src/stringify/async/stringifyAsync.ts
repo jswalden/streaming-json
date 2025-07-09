@@ -1,6 +1,8 @@
 import type { Equal, Expect } from "type-testing";
 import { EmitterBase, Quantum, type Replacer, type StringifiableValue } from "../shared.js";
-import { IsArray, JSONStringify, EnumerableOwnPropertyKeys } from "../../utils/stdlib.js";
+import { IsArray } from "../../stdlib/array.js";
+import { JSONStringify } from "../../stdlib/json-stringify.js";
+import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
 
 // It's not possible to transform a sync implementation into an async/await
 // implementation -- the syntax just doesn't compose.  So we duplicate the
