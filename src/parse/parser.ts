@@ -127,19 +127,6 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     while (true);
   };
 
-  const consumeTrailingWhitespace = function* (): Generator<void, void, string> {
-    do {
-      while (!atEnd()) {
-        if (!IsJSONWhitespace(fragment[current]))
-          throw new SyntaxError("Unexpected non-whitespace character after JSON data");
-        current++;
-      }
-
-      if (yield* atEOF())
-        return;
-    } while (true);
-  };
-
   const consumeKeyword = function* (keyword: string): Generator<void, void, string> {
     let i = 0;
     while (i < keyword.length) {
@@ -567,7 +554,10 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     state = stack[stack.length - 1][0];
   } while (true);
 
-  yield* consumeTrailingWhitespace();
+  yield* consumeWhitespace();
+
+  if (!atEnd())
+    throw new SyntaxError("Unexpected non-whitespace character after JSON data");
 
   return value;
 }
