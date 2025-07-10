@@ -155,7 +155,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     }
   };
 
-  const jsonString = function* (): Generator<void, StringToken, string> {
+  const jsonString = function* (): Generator<void, string, string> {
     if (atEnd() || fragment[current] !== '"')
       throw new Error("LOGIC ERROR");
     current++;
@@ -168,7 +168,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
       let c = fragment[current++];
       if (c === '"')
-        return { type: "string", value };
+        return value;
 
       if (c <= "\u001F")
         throw new SyntaxError("Bad control character in string literal");
@@ -343,7 +343,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
     const c = fragment[current];
     if (c === '"')
-      return yield* jsonString();
+      return { type: "string", value: yield* jsonString() };
 
     if (c === "}") {
       current++;
@@ -399,7 +399,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
     switch (fragment[current]) {
       case '"':
-        return yield* jsonString();
+        return { type: "string", value: yield* jsonString() };
 
       case "-":
       case "0":
@@ -539,7 +539,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
           throw new Error("Expected property name");
 
         const property = yield* jsonString();
-        objectInfo[1][1] = property.value;
+        objectInfo[1][1] = property;
 
         yield* advanceColon();
 
