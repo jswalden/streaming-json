@@ -4,6 +4,7 @@ import { IsArray } from "../../stdlib/array.js";
 import { JSONStringify } from "../../stdlib/json-stringify.js";
 import { LengthOfArrayLike } from "../../stdlib/length.js";
 import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
+import { StringSlice } from "../../stdlib/string.js";
 
 // It's not possible to transform a sync implementation into an async/await
 // implementation -- the syntax just doesn't compose.  So we duplicate the
@@ -24,7 +25,7 @@ class AsyncStreamingJSONEmitter extends EmitterBase {
   /** Emit a potentially lengthy string in multiple chunks. */
   private async emitLengthy(s: string): Promise<void> {
     for (let i = 0; i < s.length; i += Quantum)
-      await this.emit(s.slice(i, i + Quantum));
+      await this.emit(StringSlice(s, i, i + Quantum));
   }
 
   constructor(replacer: Replacer | undefined, space: string | number, emit: (s: string) => Promise<void>) {

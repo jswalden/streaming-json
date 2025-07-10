@@ -4,3 +4,9 @@ export function Truncate(n: number): number {
     throw new RangeError("Truncate only handles finite numbers");
   return Math.trunc(n);
 }
+
+/**
+ * Return the minimum supplied argument, or `NaN` if any supplied argument is
+ * `NaN`.
+ */
+export const Min: (num: number, ...rest: readonly number[]) => number = Math.min;

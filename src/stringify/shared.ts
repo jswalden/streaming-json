@@ -19,10 +19,11 @@ import { ArrayContains, Pop, Push } from "../stdlib/array.js";
 import { ExtractBigIntData } from "../stdlib/bigint.js";
 import { ExtractBooleanData } from "../stdlib/boolean.js";
 import { LengthOfArrayLike } from "../stdlib/length.js";
+import { Min, Truncate } from "../stdlib/math.js";
 import { ToNumber } from "../stdlib/number.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { SetAdd, SetHas } from "../stdlib/set.js";
-import { ToString } from "../stdlib/string.js";
+import { StringRepeat, StringSlice, ToString } from "../stdlib/string.js";
 
 /**
  * The type of all values that can be stringified.
@@ -84,9 +85,9 @@ export class EmitterBase {
     this.replacer = typeof replacer === "object" ? toPropertyList(replacer) : replacer;
 
     this.gap = typeof space === "string"
-      ? space.slice(0, 10)
+      ? StringSlice(space, 0, 10)
       : space >= 1
-        ? " ".repeat(Math.min(Math.trunc(space), 10))
+        ? StringRepeat(" ", Truncate(Min(10, space)))
         : "";
   }
 

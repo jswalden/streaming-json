@@ -11,3 +11,8 @@ export const StringFromCharCode = String.fromCharCode;
 export function StringSlice(s: string, start: number, limit: number): string {
   return s.slice(start, limit);
 }
+
+/** Return a string consisting of `s` repeated `count` times. */
+export function StringRepeat(s: string, count: number): string {
+  return s.repeat(count);
+}

@@ -4,6 +4,7 @@ import { IsArray } from "../../stdlib/array.js";
 import { JSONStringify } from "../../stdlib/json-stringify.js";
 import { LengthOfArrayLike } from "../../stdlib/length.js";
 import { EnumerableOwnPropertyKeys } from "../../stdlib/object.js";
+import { StringSlice } from "../../stdlib/string.js";
 
 /** A class managing state incrementally sync-emitting JSON stringification. */
 class StreamingJSONEmitter extends EmitterBase {
@@ -12,7 +13,7 @@ class StreamingJSONEmitter extends EmitterBase {
   /** Break up the emitting of a lengthy  string. */
   private emitLengthy(s: string): void {
     for (let i = 0; i < s.length; i += Quantum)
-      this.emit(s.slice(i, i + Quantum));
+      this.emit(StringSlice(s, i, i + Quantum));
   }
 
   constructor(replacer: Replacer | undefined, space: string | number, emit: (s: string) => void) {

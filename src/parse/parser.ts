@@ -1,6 +1,8 @@
 import type { Equal, Expect } from "type-testing";
 import { IsArray, Pop, Push } from "../stdlib/array.js";
 import { LengthOfArrayLike } from "../stdlib/length.js";
+import { Min } from "../stdlib/math.js";
+import { ParseDecimalDigits, ParseFloat, ParseHexDigits } from "../stdlib/number.js";
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
@@ -144,7 +146,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       if (atEnd() && (yield* atEOF()))
         throw new SyntaxError(`End of data in middle of '${keyword}' keyword`);
 
-      const amount = Math.min(keyword.length - i, end - current);
+      const amount = Min(keyword.length - i, end - current);
       if (StringSlice(keyword, i, i + amount) !== StringSlice(fragment, current, current + amount))
         throw new SyntaxError(`Malformed '${keyword}' keyword`);
 
@@ -203,7 +205,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               if (atEnd() && (yield* atEOF()))
                 throw new SyntaxError("Too-short Unicode escape");
 
-              const amount = Math.min(4 - digits.length, end - current);
+              const amount = Min(4 - digits.length, end - current);
               for (let i = 0; i < amount; i++) {
                 if (!IsHexDigit(fragment[current + i]))
                   throw new SyntaxError("Bad Unicode escape");
@@ -211,7 +213,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               digits += StringSlice(fragment, current, current + amount);
               current += amount;
             } while (digits.length < 4);
-            c = StringFromCharCode(parseInt(digits, 16));
+            c = StringFromCharCode(ParseHexDigits(digits));
             break;
           }
 
@@ -254,7 +256,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       do {
         if (atEnd()) {
           if (yield* atEOF())
-            return { type: "number", value: parseInt(numText, 10) };
+            return { type: "number", value: ParseDecimalDigits(numText) };
         }
 
         c = fragment[current];
@@ -267,7 +269,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     }
 
     if (c !== "." && c !== "e" && c !== "E")
-      return { type: "number", value: parseInt(numText, 10) };
+      return { type: "number", value: ParseDecimalDigits(numText) };
 
     // (\.[0-9]+)?
     if (c === ".") {
@@ -284,7 +286,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
       do {
         if (atEnd() && (yield* atEOF()))
-          return { type: "number", value: parseFloat(numText) };
+          return { type: "number", value: ParseFloat(numText) };
 
         c = fragment[current];
         if (!IsAsciiDigit(c))
@@ -330,7 +332,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       } while (true);
     }
 
-    return { type: "number", value: parseFloat(numText) };
+    return { type: "number", value: ParseFloat(numText) };
   };
 
   const advanceAfterObjectOpen = function* (): Generator<void, ObjectCloseToken | StringToken, string> {
@@ -587,15 +589,19 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
  * A JSON parser when you'd prefer to incrementally parse your JSON in fragments
  * rather than from one single string.
  *
- * To use, feed fragments of JSON text to the parser by calling `add(fragment)`.
- * When you've fed the entire JSON text to the parser, call `finish()` to get
- * the parsing result.  In case of a syntax error in the overall parsed text,
- * identified during `add(fragment)` or during `finish()` a `SyntaxError` will
- * be thrown.
+ * Feed fragments of JSON text to the parser by calling `add(fragment)`.  When
+ * you've fed the entire JSON text to the parser, call `finish()` to get the
+ * (optionally revived) result.
  *
- * If any function called on this throws an `Error` (most commonly a
+ * Any syntax error in the incomplete JSON text will cause a `SyntaxError` to be
+ * thrown at the first opportunity, be it in the applicable `add(fragment)` call
+ * or in the final `finish()` call.
+ *
+ * If any function called on this class throws an `Error` (most commonly a
  * `SyntaxError`), that error is cached and will be rethrown by any and all
- * subsequent function calls on this.
+ * subsequent function calls on this.  However, if the reviving process throws a
+ * non-`Error`, that value will be thrown and then successive calls to any
+ * function on this class will throw a separately created `Error`.
  */
 export class StreamingJSONParser {
   #parser = ParseJSON();
@@ -670,9 +676,10 @@ export class StreamingJSONParser {
    * Stop feeding fragments to this parser and compute and return the final
    * result of parsing and any requested postprocessing.
    *
-   * If parsing of all fragments failed (including if no fragments were passed
-   * and the supplied text is, vacuously, the empty string) and no preceding
-   * `add(fragment)` threw a `SyntaxError`, throw one now.
+   * If the concatenation of all fragments (or, in the vacuous case of no
+   * fragments, the empty string) is not valid JSON (even as it necessarily was
+   * an acceptable prefix of some valid JSON or `add(fragment)` would have
+   * thrown), throw a `SyntaxError`.
    *
    * Otherwise compute the overall result of parsing as the value `unfiltered`.
    * If a `reviver` was not supplied, return `unfiltered`.
@@ -687,19 +694,13 @@ export class StreamingJSONParser {
    * `finish()` may only be called once.  Calling it a second time will throw an
    * exception -- the same exception thrown by the first `add(fragment)` or
    * `finish()` call to fail, if one of those calls threw, or the `Error` thrown
-   * by invocation of `reviver` if it throws an Error`.  (If `reviver` throws
-   * some other value, that value is incorporated into an `Error`)  But if instead the
-   * `reviver` throwsOtherwise a new
-   * exception is thrown -- the `Error` thrown by an invocation of `reviver` the
-   * first tim it it threw an `Error`, otherwise a fresh `Error  Calling it when a prior `add(fragment)` already threw will
-   * rethrow that thrown exception.
-   *
-   * Calling this after a `SyntaxError` has been thrown will rethrow that
-   * `SyntaxError`.
+   * during reviving if reviving throws an `Error`.  (If `reviver` throws some
+   * other value, that value is incorporated into an `Error`.)  But if instead
+   * reviving throws some other value, that value is thrown by this function.
    *
    * @returns
-   *   The overall parse result, if all fragments together constitute valid JSON
-   *   text.
+   *   The overall parse result, optionally revived, if all fragments together
+   *   constitute valid JSON text.
    */
   finish(): JSONValue;
   finish<T>(reviver: Reviver<T>): T;
@@ -750,11 +751,11 @@ export class StreamingJSONParser {
   }
 };
 
+/** @see https://tc39.es/ecma262/#sec-internalizejsonproperty */
 function InternalizeJSONProperty<
   R extends Reviver<T>,
   T,
 >(holder: object, name: string | number, reviver: R): ReturnType<R> {
-  // https://tc39.es/ecma262/#sec-internalizejsonproperty
   const val = (holder as Record<string, unknown>)[name];
   if (val !== null && typeof val === "object") {
     const isArray = IsArray(val);
