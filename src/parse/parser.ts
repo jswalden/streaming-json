@@ -226,7 +226,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     } while (true);
   };
 
-  const jsonNumber = function* (): Generator<void, NumberToken, string> {
+  const jsonNumber = function* (): Generator<void, number, string> {
     if (atEnd())
       throw new Error("LOGIC ERROR");
 
@@ -256,7 +256,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       do {
         if (atEnd()) {
           if (yield* atEOF())
-            return { type: "number", value: ParseDecimalDigits(numText) };
+            return ParseDecimalDigits(numText);
         }
 
         c = fragment[current];
@@ -269,7 +269,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     }
 
     if (c !== "." && c !== "e" && c !== "E")
-      return { type: "number", value: ParseDecimalDigits(numText) };
+      return ParseDecimalDigits(numText);
 
     // (\.[0-9]+)?
     if (c === ".") {
@@ -286,7 +286,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
       do {
         if (atEnd() && (yield* atEOF()))
-          return { type: "number", value: ParseFloat(numText) };
+          return ParseFloat(numText);
 
         c = fragment[current];
         if (!IsAsciiDigit(c))
@@ -332,7 +332,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       } while (true);
     }
 
-    return { type: "number", value: ParseFloat(numText) };
+    return ParseFloat(numText);
   };
 
   const advanceAfterObjectOpen = function* (): Generator<void, ObjectCloseToken | StringToken, string> {
@@ -412,7 +412,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       case "7":
       case "8":
       case "9":
-        return yield* jsonNumber();
+        return { type: "number", value: yield* jsonNumber() };
 
       case "t":
         yield* consumeKeyword("true");
