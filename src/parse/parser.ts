@@ -352,28 +352,32 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     current++;
   };
 
-  const advanceAfterObjectEntry = function* (): Generator<void, "}" | ",", string> {
+  const advanceObjectEnds = function* (): Generator<void, boolean, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
       throw new SyntaxError("End of data after property value in object");
 
     const c = fragment[current++];
-    if (c === "," || c === "}")
-      return c;
+    if (c === ",")
+      return false;
+    if (c === "}")
+      return true;
 
     throw new SyntaxError("Expected ',' or '}' after property value in object");
   };
 
-  const advanceAfterArrayElement = function* (): Generator<void, "]" | ",", string> {
+  const advanceArrayEnds = function* (): Generator<void, boolean, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
       throw new SyntaxError("End of data when ',' or ']' was expected");
 
     const c = fragment[current++];
-    if (c === "]" || c === ",")
-      return c;
+    if (c === ",")
+      return false;
+    if (c === "]")
+      return true;
 
     throw new SyntaxError("Expected property name or '}'");
   };
@@ -511,8 +515,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         const [partialObj, pendingProperty] = objectInfo[1];
         CreateDataProperty(partialObj, pendingProperty, value);
 
-        const punct = yield* advanceAfterObjectEntry();
-        if (punct === "}") {
+        if (yield* advanceObjectEnds()) {
           value = Pop(stack)[1][0];
           break toFinishValue;
         }
@@ -537,8 +540,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       case "finish-array-element": {
         const arrayInfo = stack[stack.length - 1] as [ParseState, PartialArray];
         Push(arrayInfo[1], value);
-        const punct = yield* advanceAfterArrayElement();
-        if (punct === "]") {
+        if (yield* advanceArrayEnds()) {
           value = Pop(stack)[1];
           break toFinishValue;
         }
