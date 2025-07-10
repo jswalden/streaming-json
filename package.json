@@ -53,6 +53,8 @@
     ]
   },
   "engines": {
+    "npm": "please-use-yarn",
+    "yarn": "^4.9",
     "node": "^18"
   },
   "files": [
