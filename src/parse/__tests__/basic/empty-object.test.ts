@@ -25,6 +25,6 @@ describe("empty object", () => {
     const res = parser.finish();
     expect(res).toEqual({});
 
-    expect(() => parser.finish()).toThrowErrorMatching(Error, "only be finished once");
+    expect(() => parser.finish()).toThrowErrorMatching(Error, "Can't call finish: ");
   });
 });

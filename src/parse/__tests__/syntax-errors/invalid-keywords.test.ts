@@ -16,11 +16,13 @@ describe("example StreamingJSONParser usage in README.md", () => {
   ])("$bad", ({ bad, keyword }) => {
     const parser = new StreamingJSONParser();
     expect(() => parser.add(bad)).toThrowErrorMatching(SyntaxError, `'${keyword}' keyword`);
+    expect(parser.done()).toBe(true);
   });
 
   test("foo", () => {
     const parser = new StreamingJSONParser();
 
     expect(() => parser.add("#*@($&")).toThrowErrorMatching(SyntaxError, "Unexpected character");
+    expect(parser.done()).toBe(true);
   });
 });

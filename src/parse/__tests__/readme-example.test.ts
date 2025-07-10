@@ -10,8 +10,10 @@ describe("example StreamingJSONParser usage in README.md", () => {
     parser.add('Name": 1');
     parser.add('7, "complex": {');
     parser.add("}}");
+    expect(parser.done()).toBe(false);
 
     const result = parser.finish();
+    expect(parser.done()).toBe(true);
     expect(result).toEqual({ propertyName: 17, complex: {} });
   });
 });

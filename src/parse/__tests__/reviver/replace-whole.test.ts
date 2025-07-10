@@ -12,6 +12,7 @@ describe("replace entire JSON result", () => {
     parser.add("}}");
 
     const result = parser.finish(function () {
+      expect(parser.done()).toBe(true);
       expect(this).not.toBeNull();
       expect(this).toBeTypeOf("object");
       return 42;

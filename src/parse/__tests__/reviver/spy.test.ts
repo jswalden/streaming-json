@@ -19,10 +19,12 @@ describe("spying on reviver invocations", () => {
     parser.add(json.slice(33));
 
     const reviver = vi.fn<Reviver<JSONValue>>((_prop: string, val: any) => {
+      expect(parser.done()).toBe(true);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return val;
     });
 
+    expect(parser.done()).toBe(false);
     const result = parser.finish(reviver);
     expect(result).toEqual([
       0,

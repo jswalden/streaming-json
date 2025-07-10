@@ -3,7 +3,6 @@ import { StreamingJSONParser } from "../../parser.js";
 
 describe("bad Unicode escape", () => {
   test.each([
-    [{ desc: "\\", text: '"\\' }],
     [{ desc: "\\u", text: '"\\u' }],
     [{ desc: "\\uA", text: '"\\uA' }],
     [{ desc: "\\uAB", text: '"\\uAB' }],
@@ -15,7 +14,7 @@ describe("bad Unicode escape", () => {
     parser.add(text);
     expect(parser.done()).toBe(false);
 
-    expect(() => parser.finish()).toThrowError(SyntaxError);
+    expect(() => parser.finish()).toThrowErrorMatching(SyntaxError, "Too-short Unicode escape");
   });
 
   test.each([

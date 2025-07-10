@@ -137,7 +137,8 @@ const resultWithReviver = parser.finish(function(_name, _value) {
 assert(resultWithReviver === 42);
 ```
 
-As soon as the fragments received cannot be the prefix of valid JSON,
-`add(fragment)` will throw a `SyntaxError`, and subsequent calls of
-`StreamingJSONParser` member functions will rethrow that same `SyntaxError`.
-Syntax errors are detected and thrown at the earliest possible instance.
+If the fragments can't be the prefix of valid JSON, the `add(fragment)` that
+creates this condition will throw a `SyntaxError`.  If the fragments aren't
+valid JSON at time `finish()` is called, `finish()` will throw a `SyntaxError`.
+`add(fragment)` and `finish()` may only be called while parsing is incomplete
+and has not fallen into error: after this the parser is no longer usable.

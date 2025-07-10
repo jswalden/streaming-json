@@ -11,5 +11,6 @@ describe("bad single-character escape", () => {
     expect(parser.done()).toBe(false);
 
     expect(() => parser.add(text)).toThrowErrorMatching(SyntaxError, "Bad escaped character 'v'");
+    expect(parser.done()).toBe(true);
   });
 });

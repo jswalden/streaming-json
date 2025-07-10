@@ -16,6 +16,6 @@ describe("simple singleton values", () => {
     const res = parser.finish();
     expect(res).toBe(value);
 
-    expect(() => parser.finish()).toThrowErrorMatching(Error, "Parsing can only be finished once");
+    expect(() => parser.finish()).toThrowErrorMatching(Error, "Can't call finish: ");
   });
 });

@@ -15,7 +15,7 @@ expect.extend({
     } catch (e) {
       if (e instanceof ctor && e.name === ctor.name) {
         threw = e;
-        behavior = `threw ${e.name}`;
+        behavior = `threw ${e.name}, message ${e.message}`;
       } else {
         behavior = `threw not a ${ctor.name}`;
       }

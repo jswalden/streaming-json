@@ -14,6 +14,7 @@ describe("invalidly terminated values", () => {
     expect(parser.done()).toBe(false);
 
     expect(() => parser.finish()).toThrowError(SyntaxError);
-    expect(() => parser.finish()).toThrowError(SyntaxError);
+    expect(parser.done()).toBe(true);
+    expect(() => parser.finish()).toThrowErrorMatching(Error, "Can't call finish: ");
   });
 });

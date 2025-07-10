@@ -593,83 +593,59 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
  * you've fed the entire JSON text to the parser, call `finish()` to get the
  * (optionally revived) result.
  *
- * Any syntax error in the incomplete JSON text will cause a `SyntaxError` to be
- * thrown at the first opportunity, be it in the applicable `add(fragment)` call
- * or in the final `finish()` call.
- *
- * If any function called on this class throws an `Error` (most commonly a
- * `SyntaxError`), that error is cached and will be rethrown by any and all
- * subsequent function calls on this.  However, if the reviving process throws a
- * non-`Error`, that value will be thrown and then successive calls to any
- * function on this class will throw a separately created `Error`.
+ * If the concatenation of fragments is ever definitely not a prefix of valid
+ * JSON text, or if the final concatenation of all fragments is not valid JSON
+ * text, a `SyntaxError` is thrown by the applicable `add(fragment)` or
+ * `finish()`.
  */
 export class StreamingJSONParser {
   #parser = ParseJSON();
-  #result: IteratorResult<void, JSONValue>;
-  #error: Error | null = null;
+  #done = false;
 
   constructor() {
     // Advance past initial implicit yield to first actual yield.
-    this.#result = this.#parser.next();
-    if (typeof this.#result.done === "boolean" && this.#result.done) {
-      this.#error = new Error("BUG: PARSER PREMATURELY FINISHED");
-      throw this.#error;
-    }
-  }
-
-  #try<T>(f: () => T): T {
-    if (this.#error !== null)
-      throw this.#error;
-
-    try {
-      return f();
-    } catch (e: any) {
-      if (this.#error === null) {
-        try {
-          if (e instanceof Error)
-            this.#error = e;
-          else
-            this.#error = new Error(`Parse error: ${e}`);
-        } catch (_e2: any) {
-          this.#error = new Error("An unknown error occurred during parsing");
-        }
-      }
-
-      // Discard whatever partial results were created now that they can never
-      // be used.
-      this.#result.value = null;
-
-      throw this.#error;
-    }
+    const done = this.#parser.next().done;
+    if (typeof done === "boolean" && done)
+      throw new Error("BUG: PARSER PREMATURELY FINISHED");
   }
 
   /**
    * Add a `fragment` of additional JSON text to the overall conceptual string
    * being parsed.
    *
-   * If the added fragment renders the concatenation of fragments not a valid
-   * prefix of JSON text, this will throw a `SyntaxError`.
+   * @throws
+   *   A `SyntaxError` if adding this fragment makes the concatenation of all
+   *   fragments not a valid prefix of JSON text.
+   * @throws
+   *   An `Error` if fragments can't be added because a previous fragment
+   *   triggered a syntax error or because `finish()` was called.
    */
   add(fragment: string): void {
-    return this.#try(() => {
-      if (typeof this.#result.done === "boolean" && this.#result.done)
-        throw new Error("Parsing is already complete");
+    if (this.#done)
+      throw new Error("Can't add fragment: parsing already completed");
 
-      // Don't feed the parser magical end-of-text fragments.
-      if (fragment.length > 0)
-        this.#result = this.#parser.next(fragment);
-    });
+    // Filter out magical end-of-text fragments.
+    if (fragment.length > 0) {
+      try {
+        const done = this.#parser.next(fragment).done;
+        if (typeof done === "boolean" && done)
+          throw new Error("BUG add(nonempty fragment) never completes parsing");
+      } catch (e) {
+        this.#done = true;
+        throw e;
+      }
+    }
   }
 
   /**
-   * Returns `true` iff all fragments have been fed and `finish()` was called
-   * and returned the overall parse result, `false` otherwise.
+   * Returns `true` if more fragments can be added to this parser (even if only
+   * trailing whitespace) and `finish()` hasn't been called.
+   *
+   * Return `false` if no more fragments can be added (because `finish()` was
+   * called or because a preceding fragment contained a syntax error).
    */
   done(): boolean {
-    return this.#try(() => {
-      const done = this.#result.done;
-      return typeof done === "boolean" && done;
-    });
+    return this.#done;
   }
 
   /**
@@ -684,20 +660,21 @@ export class StreamingJSONParser {
    * Otherwise compute the overall result of parsing as the value `unfiltered`.
    * If a `reviver` was not supplied, return `unfiltered`.
    *
-   * Otherwise `reviver` is applied to `unfiltered` and to all its properties,
-   * subarrays, subobjects, subproperties, etc. recursively, exactly as
+   * If `reviver` was supplied, apply it to `unfiltered` and to its properties,
+   * elements, subarrays, subobjects subproperties, etc. recursively as
    * [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse)
-   * would do if it had been supplied to `JSON.parse` along with the combined
-   * text being parsed by this parser.  That result is then returned, exactly as
-   * `JSON.parse` would have returned it.
+   * would do if it were passed `reviver` and the combined fragments passed to
+   * this parser.  The result of reviving as `JSON.parse` would have computed it
+   * is then returned.
    *
-   * `finish()` may only be called once.  Calling it a second time will throw an
-   * exception -- the same exception thrown by the first `add(fragment)` or
-   * `finish()` call to fail, if one of those calls threw, or the `Error` thrown
-   * during reviving if reviving throws an `Error`.  (If `reviver` throws some
-   * other value, that value is incorporated into an `Error`.)  But if instead
-   * reviving throws some other value, that value is thrown by this function.
-   *
+   * @throws
+   *   `Error` if parsing was already `done()`.
+   * @throws
+   *   `SyntaxError` if parsing wasn't `done()` and the concatenation of all
+   *   fragments isn't valid JSON (even as it must be the *prefix* of valid JSON
+   *   text).
+   * @throws
+   *   Any value thrown by `reviver` during the reviving process.
    * @returns
    *   The overall parse result, optionally revived, if all fragments together
    *   constitute valid JSON text.
@@ -705,22 +682,30 @@ export class StreamingJSONParser {
   finish(): JSONValue;
   finish<T>(reviver: Reviver<T>): T;
   finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
-    // Finish parsing and compute the unfiltered result of the parse.
-    const unfiltered = this.#try(() => {
-      if (typeof this.#result.done === "boolean" && this.#result.done)
-        throw new Error("Parsing can only be finished once");
+    if (this.#done) {
+      throw new Error(
+        "Can't call finish: it was either already called or a syntax error " +
+        "was encountered",
+      );
+    }
 
-      this.#result = this.#parser.next("");
+    let unfiltered: JSONValue;
+    try {
+      // Finish parsing and compute the unfiltered result of the parse.
+      const result = this.#parser.next("");
 
-      if (typeof this.#result.done !== "boolean" || !this.#result.done)
-        throw new Error("Complete text is not valid JSON");
+      const done = result.done;
+      if (typeof done !== "boolean" || !done)
+        throw new SyntaxError("Complete text is not valid JSON");
 
-      const unfiltered = this.#result.value;
-      this.#result.value = null; // drop the value now that the caller has it
-      return unfiltered;
-    });
+      unfiltered = result.value;
+    } catch (e) {
+      throw e;
+    } finally {
+      this.#done = true;
+    }
 
-    // If a reviver was not supplied, return the unfiltered result.
+    // If a reviver wasn't supplied, return the unfiltered result.
     if (typeof reviver === "undefined")
       return unfiltered;
 
@@ -730,24 +715,9 @@ export class StreamingJSONParser {
     // errors during revival verbatim -- and because `this.#try` would return a
     // combined `JSONValue | T` type, losing the distinction the separate
     // overloads convey across the callback boundary.
-    try {
-      const rootName = "";
-      const root: object = { [rootName]: unfiltered };
-      return InternalizeJSONProperty(root, rootName, reviver);
-    } catch (e: any) {
-      if (this.#error === null) {
-        try {
-          if (e instanceof Error)
-            this.#error = e;
-          else
-            this.#error = new Error(`Reviver threw an error: ${e}`);
-        } catch (_e2) {
-          this.#error = new Error("An error occurred during reviving");
-        }
-      }
-
-      throw e;
-    }
+    const rootName = "";
+    const root: object = { [rootName]: unfiltered };
+    return InternalizeJSONProperty(root, rootName, reviver);
   }
 };
 

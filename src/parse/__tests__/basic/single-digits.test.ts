@@ -13,7 +13,7 @@ describe("single-digit decimal numbers", () => {
       const res = parser.finish();
       expect(res).toBe(i);
 
-      expect(() => parser.finish()).toThrowErrorMatching(Error, "only be finished once");
+      expect(() => parser.finish()).toThrowErrorMatching(Error, "Can't call finish: ");
     });
   }
 });

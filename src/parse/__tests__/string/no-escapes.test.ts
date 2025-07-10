@@ -13,5 +13,6 @@ describe("strings without any escapes", () => {
     expect(parser.done()).toBe(false);
 
     expect(parser.finish()).toBe(value);
+    expect(parser.done()).toBe(true);
   });
 });
