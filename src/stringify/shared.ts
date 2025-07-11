@@ -81,8 +81,8 @@ export class EmitterBase {
 
   protected readonly gap: string;
 
-  constructor(replacer: Replacer | undefined, space: string | number) {
-    this.replacer = typeof replacer === "object" ? toPropertyList(replacer) : replacer;
+  constructor(replacer: Replacer | undefined | null, space: string | number) {
+    this.replacer = typeof replacer === "function" ? replacer : replacer ? toPropertyList(replacer) : undefined;
 
     this.gap = typeof space === "string"
       ? StringSlice(space, 0, 10)

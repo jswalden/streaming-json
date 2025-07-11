@@ -28,7 +28,7 @@ class AsyncStreamingJSONEmitter extends EmitterBase {
       await this.emit(StringSlice(s, i, i + Quantum));
   }
 
-  constructor(replacer: Replacer | undefined, space: string | number, emit: (s: string) => Promise<void>) {
+  constructor(replacer: Replacer | undefined | null, space: string | number, emit: (s: string) => Promise<void>) {
     super(replacer, space);
     this.emit = emit;
   }
@@ -180,8 +180,8 @@ class AsyncStreamingJSONEmitter extends EmitterBase {
  * @param
  *   A property list identifying the properties to include in stringification,
  *   or a replacer function to call that can modify or eliminate values encoded
- *   in the ultimate stringification -- or `undefined` if no replacement or
- *   limitation of properties is to occur.
+ *   in the ultimate stringification -- or `null` or `undefined` if no
+ *   replacement or limitation of properties is to occur.
  * @param space
  *   A `space` string/number controlling the presence of added whitespace within
  *   the stringification.
@@ -198,7 +198,7 @@ class AsyncStreamingJSONEmitter extends EmitterBase {
  */
 export async function stringifyAsync(
   value: unknown,
-  replacer: Replacer | undefined,
+  replacer: Replacer | undefined | null,
   space: string | number,
   emit: (s: string) => Promise<void>,
 ): Promise<void> {
