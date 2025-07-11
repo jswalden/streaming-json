@@ -37,7 +37,6 @@
     }
   },
   "scripts": {
-    "postinstall": "husky",
     "test": "vitest --run",
     "check-types": "tsc -p tsconfig.json --noEmit",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -45,7 +44,8 @@
     "build": "rimraf dist && yarn build:esm && yarn build:cjs",
     "lint:raw": "eslint",
     "lint": "yarn lint:raw .",
-    "knip": "knip"
+    "knip": "knip",
+    "prepare": "husky"
   },
   "lint-staged": {
     "*.{json,md,mjs,ts,yaml}": [
