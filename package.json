@@ -58,7 +58,7 @@
     "node": "^18"
   },
   "files": [
-    "dist/*"
+    "dist/**/*"
   ],
   "dependencies": {
     "type-testing": "~0.2.0"
