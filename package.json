@@ -64,16 +64,16 @@
     "type-testing": "~0.2.0"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin": "~5.0.0",
-    "@types/node": "~24.0.3",
-    "eslint": "~9.29.0",
-    "eslint-plugin-n": "~17.20.0",
+    "@stylistic/eslint-plugin": "~5.1.0",
+    "@types/node": "~24.0.13",
+    "eslint": "~9.31.0",
+    "eslint-plugin-n": "~17.21.0",
     "husky": "~9.1.7",
-    "knip": "~5.61.2",
+    "knip": "~5.61.3",
     "lint-staged": "~16.1.2",
     "rimraf": "~6.0.1",
     "typescript": "~5.8.3",
-    "typescript-eslint": "~8.34.1",
+    "typescript-eslint": "~8.36.0",
     "vitest": "~3.2.4"
   },
   "packageManager": "yarn@4.9.2"
