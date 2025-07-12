@@ -58,8 +58,7 @@
     "node": "^18"
   },
   "files": [
-    "dist",
-    "README.md"
+    "dist/*"
   ],
   "dependencies": {
     "type-testing": "~0.2.0"
