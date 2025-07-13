@@ -53,7 +53,7 @@
     ]
   },
   "engines": {
-    "npm": "please-use-yarn",
+    "npm": "^10",
     "yarn": "^4.9",
     "node": "^18"
   },
