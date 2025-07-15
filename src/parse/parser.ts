@@ -591,12 +591,12 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
  * `finish()`.
  */
 export class StreamingJSONParser {
-  #parser = ParseJSON();
-  #done = false;
+  private parser = ParseJSON();
+  private complete = false;
 
   constructor() {
     // Advance past initial implicit yield to first actual yield.
-    const done = this.#parser.next().done;
+    const done = this.parser.next().done;
     if (typeof done === "boolean" && done)
       throw new Error("BUG: PARSER PREMATURELY FINISHED");
   }
@@ -613,17 +613,17 @@ export class StreamingJSONParser {
    *   triggered a syntax error or because `finish()` was called.
    */
   add(fragment: string): void {
-    if (this.#done)
+    if (this.complete)
       throw new Error("Can't add fragment: parsing already completed");
 
     // Filter out magical end-of-text fragments.
     if (fragment.length > 0) {
       try {
-        const done = this.#parser.next(fragment).done;
+        const done = this.parser.next(fragment).done;
         if (typeof done === "boolean" && done)
           throw new Error("BUG add(nonempty fragment) never completes parsing");
       } catch (e) {
-        this.#done = true;
+        this.complete = true;
         throw e;
       }
     }
@@ -637,7 +637,7 @@ export class StreamingJSONParser {
    * called or because a preceding fragment contained a syntax error).
    */
   done(): boolean {
-    return this.#done;
+    return this.complete;
   }
 
   /**
@@ -674,7 +674,7 @@ export class StreamingJSONParser {
   finish(): JSONValue;
   finish<T>(reviver: Reviver<T>): T;
   finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
-    if (this.#done) {
+    if (this.complete) {
       throw new Error(
         "Can't call finish: it was either already called or a syntax error " +
         "was encountered",
@@ -684,7 +684,7 @@ export class StreamingJSONParser {
     let unfiltered: JSONValue;
     try {
       // Finish parsing and compute the unfiltered result of the parse.
-      const result = this.#parser.next("");
+      const result = this.parser.next("");
 
       const done = result.done;
       if (typeof done !== "boolean" || !done)
@@ -694,7 +694,7 @@ export class StreamingJSONParser {
     } catch (e) {
       throw e;
     } finally {
-      this.#done = true;
+      this.complete = true;
     }
 
     // If a reviver wasn't supplied, return the unfiltered result.
@@ -702,11 +702,6 @@ export class StreamingJSONParser {
       return unfiltered;
 
     // If a reviver was supplied, use it to compute the true desired value.
-
-    // Don't use `this.#try` for the `reviver` case because we want to throw
-    // errors during revival verbatim -- and because `this.#try` would return a
-    // combined `JSONValue | T` type, losing the distinction the separate
-    // overloads convey across the callback boundary.
     const rootName = "";
     const root: object = { [rootName]: unfiltered };
     return InternalizeJSONProperty(root, rootName, reviver);
