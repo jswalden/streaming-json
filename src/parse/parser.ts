@@ -691,8 +691,6 @@ export class StreamingJSONParser {
         throw new SyntaxError("Complete text is not valid JSON");
 
       unfiltered = result.value;
-    } catch (e) {
-      throw e;
     } finally {
       this.complete = true;
     }
