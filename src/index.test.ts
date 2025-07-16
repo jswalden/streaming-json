@@ -22,7 +22,7 @@ describe("default export tests", () => {
     type test_stringifyReturn = Expect<
       Equal<
         ReturnType<typeof stringify>,
-        Iterable<string, void, void>
+        IterableIterator<string, void, void>
       >
     >;
   });

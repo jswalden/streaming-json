@@ -573,6 +573,6 @@ export function stringify(
   value: unknown,
   replacer: ReplacerFunction | ReplacerPropertyList | NoReplacer,
   space: string | number,
-): Iterable<string, void, void> {
+): IterableIterator<string, void, void> {
   return new StringifyGenerator(replacer, space).run(value);
 }
