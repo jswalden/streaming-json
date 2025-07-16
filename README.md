@@ -118,9 +118,9 @@ assert(Object.keys(result.complex).length === 0);
 
 const withReviver = new StreamingJSONParser();
 
-parser.add("true");
+withReviver.add("true");
 
-const resultWithReviver = parser.finish(function(_name, _value) {
+const resultWithReviver = withReviver.finish(function(_name, _value) {
   // throws away `this[_name] === _value` where `_value === true`
   return 42;
 });
