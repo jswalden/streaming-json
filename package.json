@@ -6,7 +6,7 @@
     "email": "jwalden+code@mit.edu",
     "url": "https://whereswalden.com"
   },
-  "version": "0.12.0",
+  "version": "0.13.0",
   "keywords": [
     "streaming",
     "incremental",
