@@ -7,14 +7,14 @@ abstract away use of the various `Error` constructors as they're trivially found
 by searching.)
 
 Ideally this package wouldn't invoke user-modifiable standard library
-functionality, for greatest faithfulness to standard library semantics.  And if
-valid copies of standard library functions could be cached at package load
-(after ensuring package code is evaluated sufficiently early that no user code
-can modify the standard library), this could be done for stringification.
+functionality, for greatest faithfulness to standard library semantics.  It
+might, for example, cache valid copies of standard library functions at package
+load whose semantics it could depend on no matter what happens beyond them.
 
-But parsing is currently implemented using generator syntax and `yield*`.
-`yield*` depends upon certain standard library prototypes having their original
-function values -- thereby making `yield*` externally-hijackable syntax:
+But parsing and stringification currently both use generators &mdash; and
+specifically they use `yield*`.  And `yield*` depends upon certain standard
+library prototypes having their original function values -- making it possible
+to hijack the behavior of `yield*` outside package code:
 
 ```js
 function* f() { yield 17; }
@@ -33,4 +33,4 @@ f().__proto__.__proto__.next = function() { return { value: 42, done: false }; }
 run(); // logs 42
 ```
 
-In light of this, there's not much point trying *too* hard to be hygienic now.
+Given this pitfall, there's not much point trying *too* hard to be hygienic now.

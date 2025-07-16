@@ -8,9 +8,9 @@ functionality.
 
 The operations in this package behave consistent with ECMAScript semantics, but
 modifications to various standard-library functionality can interfere with these
-semantics.  (And, of course, user-supplied callback functions can perform
-actions that might observably disturb the intermediate states created by
-ECMAScript semantics.)
+semantics.  (And, of course, user code between iteration operations or between
+additions of JSON fragments to a parser can perform actions that might
+observably disturb the intermediate states created by ECMAScript semantics.)
 
 ## Stringification
 
@@ -21,9 +21,9 @@ and `stringifyAsync`.  You can either import the specific function you need:
 import { stringifyAsync } from "@jswalden/streaming-json";
 
 async function writeJSONToFileAsync(value, file) {
-  return stringifyAsync(value, null, "  ", async (s) => {
-    await file.write(s);
-  });
+  for await (const frag of stringifyAsync(value, null, "  ")) {
+    await file.write(frag);
+  }
 }
 ```
 
@@ -34,50 +34,48 @@ the `JSON` object:
 import * as StreamingJSON from "@jswalden/streaming-json";
 
 async function writeJSONToFileAsync(value, file) {
-  return StreamingJSON.stringifyAsync(value, null, "  ", async (s) => {
-    await file.write(s);
-  });
+  for await (const frag of StreamingJSON.stringifyAsync(value, null, "  ")) {
+    await file.write(frag);
+  }
 }
 
 function writeJSONToFile(value, file) {
-  StreamingJSON.stringify(value, null, "  ", (s) => {
-    file.write(s);
-  })
+  for (const frag of StreamingJSON.stringify(value, null, "  "))
+    file.write(frag);
 }
 ```
 
 `stringify` and `stringifyAsync` implement JSON stringification where it's
 undesirable (or impossible, because the entire stringification is too large
 to represent as a JS string or in memory) to compute the entire JSON string at
-once, taking the standard `JSON.stringify` interface and adding an `emit`
-callback function as trailing argument (and adding `async` and internal `await`s
-to make `stringifyAsync` asynchronous).  They stringify some portion of the
-value, call `emit` with the computed fragment, then repeat until stringification
-completes.[^between-emits]
+once.  They accept the same arguments as `JSON.stringify` (albeit with certain
+narrowing of types for clearer code).  Each returns a generator yielding
+(asynchronously, for `stringifyAsync`) successive fragments of the overall JSON
+stringification.[^between-emits]
 
-[^between-emits]: If the object graph being stringified is modified within the
-`emit` callback operation, or if it is modified between the asynchronously
-performed jobs that compose the `stringifyAsync` algorithm, stringification
-behavior will change in potentially unpredictable ways.  You should somehow
-protect your value being stringified from modification while it's being
-stringified to prevent confusing behavior.
+[^between-emits]: If the object graph being stringified is modified between
+calls to the generator's `next()` function (or between the asynchronously
+performed jobs triggered by `next()` that compose the `stringifyAsync`
+algorithm), stringification behavior will be changed in potentially
+unpredictable ways.  You should take care to protect your value being
+stringified from modification during the stringification process to prevent
+confusing behavior.
 
 How stringification is broken into fragments is not defined.  Thus for example
-`stringify(true, null, "", emit)` might perform `emit("t")`, `emit("ru")`,
-`emit("e")` -- or instead simply `emit("true")`.
+`stringify(true, null, "")` might successively yield `"t"`, `"ru"`, `"e"`
+&mdash; or instead simply `"true"`.  Don't try to infer where fragmentation
+boundaries will appear!
 
-The `emit` callback is called synchronously.  For `stringify`, stringification
-resumes after `emit` returns.  For `stringifyAsync`, stringification resumes
-after the promise returned from `emit` settles.  If `emit` throws (or in the
-latter case, if it returns a promise that rejects), that error propagates
-through the overall stringification operation.  (Errors that occur during
-stringification from property gets, `toJSON`, and similar are also propagated.)
+If any operation in the stringification algorithm throws (e.g. property gets,
+`toJSON` invocations, stray `bigint` values in the graph), the `next()` call
+that triggers it will throw that value (or reject the returned promise, for
+`stringifyAsync`).
 
 As long as type signatures are respected, the stringification performed by these
-functions is consistent with `JSON.stringify(value, replacer, space)` except
-where `JSON.stringify` would return `undefined`.[^stringify-not-string]  We
-handle such cases by converting the value to `null`, as it would be converted if
-it had been encountered as an element of an array being stringified.
+functions is consistent with `JSON.stringify(value, replacer, space)`.  However,
+one special case must be noted: cases where `JSON.stringify` would return the
+literal value `undefined` and not a string value.[^stringify-not-string]  We
+handle such cases by yielding no fragments:
 
 ```js
 import { stringify } from "@jswalden/streaming-json";
@@ -87,12 +85,12 @@ const value = () => 42;
 let res = JSON.stringify(value, null, 2);
 assert(res === undefined);
 
-let out = "";
-stringify(value, null, 2, (s) => { out += s; });
-assert(out === "null");
+let frags = [...stringify(value, null, 2)];
+assert(frags.length === 0);
 ```
 
-Successful stringification thus always calls `emit` at least once.
+It's incumbent upon users who try to stringify sufficiently-broad values that
+they appropriately handle the case where no fragments are yielded.
 
 [^stringify-not-string]: `JSON.stringify` returns `undefined` if the `value`
 passed to it is `undefined`, a

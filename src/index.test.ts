@@ -2,6 +2,7 @@ import type { Equal, Expect } from "type-testing";
 import { describe, expect, test } from "vitest";
 import * as StreamingJSON from "./index.js";
 import { type JSONValue, type Reviver, StreamingJSONParser } from "./index.js";
+import type { NoReplacer, ReplacerFunction, ReplacerPropertyList } from "./stringify/stringify.js";
 
 // @ts-expect-error Verify that type-testing in test files works.
 type test_FailingTypeTest = ExpectFalse<true>;
@@ -11,36 +12,17 @@ describe("default export tests", () => {
     const stringify = StreamingJSON.stringify;
     expect(typeof stringify).toBe("function");
 
-    type test_stringifyMustReturnVoid = Expect<
+    type test_stringifyArgs = Expect<
+      Equal<
+        Parameters<typeof stringify>,
+        [unknown, ReplacerFunction | ReplacerPropertyList | NoReplacer, number | string]
+      >
+    >;
+
+    type test_stringifyReturn = Expect<
       Equal<
         ReturnType<typeof stringify>,
-        void
-      >
-    >;
-
-    type test_stringifyCallbackType = Expect<
-      Equal<
-        Parameters<typeof stringify>[3],
-        (s: string) => void
-      >
-    >;
-  });
-
-  test("stringifyAsync", () => {
-    const stringifyAsync = StreamingJSON.stringifyAsync;
-    expect(typeof stringifyAsync).toBe("function");
-
-    type test_stringifyAsyncMustReturnVoid = Expect<
-      Equal<
-        ReturnType<typeof stringifyAsync>,
-        Promise<void>
-      >
-    >;
-
-    type test_stringifyAsyncCallbackType = Expect<
-      Equal<
-        Parameters<typeof stringifyAsync>[3],
-        (s: string) => Promise<void>
+        Generator<string, void, void>
       >
     >;
   });

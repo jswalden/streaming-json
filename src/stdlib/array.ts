@@ -25,11 +25,7 @@ export const Pop = <T>(arr: T[]): T => {
   return t;
 };
 
-/**
- * Determine whether an array contains an element, according to `SameValueZero`
- * semantics.  (That is, `SameValue` semantics for non-numbers, and both-`NaN`
- * or both-zeroes or equal for numbers.)
- */
-export function ArrayContains<T>(arr: T[], t: T): boolean {
-  return arr.includes(t);
+/** Determine whether an array contains an element that satisfies `pred`. */
+export function ArrayFind<T>(arr: T[], pred: (value: T) => boolean): boolean {
+  return arr.findIndex(pred) >= 0;
 }

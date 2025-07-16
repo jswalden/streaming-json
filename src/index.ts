@@ -1,7 +1,6 @@
 import type { ExpectFalse } from "type-testing";
 
-export { stringify } from "./stringify/sync/stringify.js";
-export { stringifyAsync } from "./stringify/async/stringifyAsync.js";
+export { stringify } from "./stringify/stringify.js";
 
 export { type JSONValue, type Reviver, StreamingJSONParser } from "./parse/parser.js";
 

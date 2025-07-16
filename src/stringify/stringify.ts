@@ -1,0 +1,550 @@
+import type { Equal, Expect } from "type-testing";
+import { ArrayFind, IsArray, Pop, Push } from "../stdlib/array.js";
+import { JSONStringify } from "../stdlib/json-stringify.js";
+import { LengthOfArrayLike } from "../stdlib/length.js";
+import { EnumerableOwnPropertyKeys } from "../stdlib/object.js";
+import { StringRepeat, StringSlice, ToString } from "../stdlib/string.js";
+import { SetHas, SetAdd } from "../stdlib/set.js";
+import { Min, Truncate } from "../stdlib/math.js";
+import { ReflectApply } from "../stdlib/reflect.js";
+import { ToNumber } from "../stdlib/number.js";
+import { ExtractBooleanData } from "../stdlib/boolean.js";
+import { ExtractBigIntData } from "../stdlib/bigint.js";
+
+// The algorithm heres is patterned upon the `JSON.stringify`
+// [spec algorithm](https://tc39.es/ecma262/#sec-json.stringify).  However, the
+// spec algorithm naively serializes object property values to string (or
+// `undefined` if serialization is disallowed) before serializing the property
+// name (if the value didn't serialize to `undefined`), which would mess up
+// order of emitting.
+//
+// So we steal a page from Mozilla's (and likely others') JSON stringify
+// <https://searchfox.org/mozilla-central/rev/ec8a326713f60dec138a3e3383b03ac739870fc7/js/src/builtin/JSON.cpp#1456>
+// and implement an equivalent two-step: first preprocess values to either a
+// serializable value or `undefined`, then handle `undefined` specially
+// or another value generally at each call site.  Thus for object properties we
+// check for `undefined` and skip the property name/value if so, else emit prior
+// separation/property name/colon and then serialize the preprocessed value.
+// And for array elements and top-level values we check for `undefined` and emit
+// `null` if so, otherwise emit the preprocessed value.
+//
+// Additionally: getting the incremental fragments out of the spec's recursive
+// algorithm into an easily-consumed iterable format would require either fairly
+// awkward plumbing, or resort to unaesthetic callback functions.
+//
+// So we implement stringification in broadly similar fashion to how we
+// implement parsing: with an iterative parsing algorithm that maintains a stack
+// of current tree depth.  As with parsing, the resulting code isn't entirely
+// simple.  But it's not terribly much code, and JavaScript generator syntax
+// handles pausing/resuming reasonably elegantly.
+
+/**
+ * The string length at which emits of potentially unbounded length get broken
+ * up.
+ */
+export const Quantum = 1024;
+
+/**
+ * The type of all values that can be stringified.
+ *
+ * This type is rough and inexact.  It's only used to leverage the type system
+ * to distinguish values that pass the `preprocessValue` gauntlet and are
+ * serializable from those that do not and cause a corresponding property to be
+ * omitted from object serialization.
+ */
+type StringifiableValue = boolean | number | string | null | object;
+
+/** A list of unique property strings. */
+type PropertyList = readonly string[];
+
+/**
+ * A list of all properties to include in stringification of objects encountered
+ * during stringification.
+ */
+export type ReplacerPropertyList = readonly (string | number)[];
+
+function toPropertyList(array: ReplacerPropertyList): PropertyList {
+  const propertyList: string[] = [];
+  const set = new Set<string>();
+  const len = LengthOfArrayLike(array);
+  for (let k = 0; k < len; k++) {
+    let v = array[k];
+    v = typeof v === "number" ? ToString(v) : v;
+    if (!SetHas(set, v)) {
+      SetAdd(set, v);
+      Push(propertyList, v);
+    }
+  }
+  return propertyList;
+}
+
+/**
+ * A replacer function, applied to each object/property name/value in the
+ * overall graph created during stringification.  See `JSON.stringify`
+ * documentation for precise details.
+ *
+ * Note that when the pertinent object is an array, keys will be *strings* and
+ * not numerical indexes.
+ */
+export type ReplacerFunction = ((this: object, key: string, value: unknown) => unknown);
+
+/** No replacer. */
+export type NoReplacer = undefined | null;
+
+type State =
+  "filterable-value" |
+  "nullable-value" |
+  "finish-array-element" |
+  "find-unfiltered-object-member" |
+  "after-unfiltered-object-member";
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type FinishArrayElement = {
+  readonly state: "finish-array-element";
+  readonly indent: string;
+  readonly separator: string;
+  readonly end: string;
+  readonly object: readonly unknown[];
+  index: number;
+  readonly length: number;
+};
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type FindUnfilteredObjectMember = {
+  readonly state: "find-unfiltered-object-member";
+  readonly object: Record<string, unknown>;
+  index: number;
+  readonly props: readonly string[];
+};
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type AfterUnfilteredObjectMember = {
+  readonly state: "after-unfiltered-object-member";
+  readonly indent: string;
+  readonly colon: string;
+  readonly comma: string;
+  readonly closing: string;
+  readonly object: Record<string, unknown>;
+  index: number;
+  readonly props: readonly string[];
+};
+
+type SerializeEntry =
+  FinishArrayElement |
+  FindUnfilteredObjectMember |
+  AfterUnfilteredObjectMember;
+
+class StringifyGenerator {
+  private readonly stack: SerializeEntry[] = [];
+
+  private indent = "";
+
+  private readonly replacer: ReplacerFunction | undefined;
+  private readonly propertyList: PropertyList | undefined;
+
+  private readonly gap: string;
+
+  constructor(replacer: ReplacerFunction | ReplacerPropertyList | NoReplacer, space: string | number) {
+    if (typeof replacer === "function")
+      this.replacer = replacer;
+    else if (replacer)
+      this.propertyList = toPropertyList(replacer);
+
+    this.gap = typeof space === "string"
+      ? StringSlice(space, 0, 10)
+      : space >= 1
+        ? StringRepeat(" ", Truncate(Min(10, space)))
+        : "";
+  }
+
+  /** Yield constrained-length fragments of an unconstrained-length string. */
+  private* lengthyFragment(frag: string): Generator<string, void, void> {
+    for (let i = 0; i < frag.length; i += Quantum)
+      yield StringSlice(frag, i, i + Quantum);
+  }
+
+  /** Ensure we aren't already stringifying `obj`. */
+  private checkAcyclic(obj: object): void {
+    if (ArrayFind(this.stack, (entry: SerializeEntry) => entry.object === obj))
+      throw new TypeError("Attempting to stringify a cyclic object");
+  }
+
+  /**
+   * Begin serializing the given array.  Return the fragment corresponding to
+   * the opening of the array.
+   */
+  private enterArray(array: unknown[], length: number): string {
+    const stepBack = this.indent;
+    this.indent += this.gap;
+
+    // In theory `this.indent` could grow long enough to require `emitLengthy`
+    // here.  We ignore the concern for now.
+    const [begin, separator, end] =
+      this.gap === "" ? ["[", ",", "]"] : [`[\n${this.indent}`, `,\n${this.indent}`, `\n${stepBack}]`];
+
+    Push(this.stack, {
+      state: "finish-array-element",
+      indent: stepBack,
+      separator,
+      end,
+      object: array,
+      index: 0,
+      length,
+    });
+
+    return begin;
+  }
+
+  /** Begin serializing the given object. */
+  private enterObject(object: object, props: readonly string[]): void {
+    // `this.indent` is adjusted only once the first non-filtered property is
+    // encountered.
+    Push(this.stack, {
+      state: "find-unfiltered-object-member",
+      object: object as Record<string, unknown>,
+      index: 0,
+      props,
+    });
+  }
+
+  private stackTop(): SerializeEntry {
+    return this.stack[this.stack.length - 1];
+  }
+
+  /** Stop serializing the current object. */
+  private exitObject(): void {
+    Pop(this.stack);
+  }
+
+  * run(value: unknown): Generator<string, void, void> {
+    let key = "";
+    let holder: Record<string, unknown> | null = this.replacer ? { [key]: value } : null;
+    let val: unknown = value;
+
+    let state: State = "filterable-value";
+    toArrayElementOrObjectPropertyValue: do {
+      toFinishValue: switch (state) {
+        case "filterable-value": {
+          const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
+          if (v === undefined)
+            break toFinishValue;
+
+          if (IsArray(v)) {
+            this.checkAcyclic(v);
+
+            const length = LengthOfArrayLike(v);
+            if (length === 0) {
+              yield "[]";
+              break toFinishValue;
+            }
+
+            yield this.enterArray(v, length);
+            key = "0";
+            holder = v as unknown as Record<string, unknown>;
+            val = v[0];
+            state = "nullable-value";
+            continue toArrayElementOrObjectPropertyValue;
+          }
+
+          if (v === null) {
+            yield "null";
+            break toFinishValue;
+          }
+
+          if (typeof v === "object") {
+            this.checkAcyclic(v);
+
+            const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
+            this.enterObject(v, props);
+            state = "find-unfiltered-object-member";
+            continue toArrayElementOrObjectPropertyValue;
+          }
+
+          type assert_ValueTypeIs = Expect<
+            Equal<
+              typeof v,
+              boolean | number | string
+            >
+          >;
+          const frag = JSONStringify(v);
+
+          if (typeof v === "string")
+            yield* this.lengthyFragment(frag);
+          else
+            yield frag;
+          break toFinishValue;
+        }
+
+        case "nullable-value": {
+          const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
+          if (v === undefined || v === null) {
+            yield "null";
+            break toFinishValue;
+          }
+
+          if (IsArray(v)) {
+            this.checkAcyclic(v);
+
+            const length = LengthOfArrayLike(v);
+            if (length === 0) {
+              yield "[]";
+              break toFinishValue;
+            }
+
+            yield this.enterArray(v, length);
+            key = "0";
+            holder = v as unknown as Record<string, unknown>;
+            val = v[0];
+            state = "nullable-value";
+            continue toArrayElementOrObjectPropertyValue;
+          }
+
+          if (typeof v === "object") {
+            this.checkAcyclic(v);
+
+            const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
+            this.enterObject(v, props);
+            state = "find-unfiltered-object-member";
+            continue toArrayElementOrObjectPropertyValue;
+          }
+
+          type assert_ValueTypeIs = Expect<
+            Equal<
+              typeof v,
+              boolean | number | string
+            >
+          >;
+          const frag = JSONStringify(v);
+
+          if (typeof v === "string")
+            yield* this.lengthyFragment(frag);
+          else
+            yield frag;
+          break toFinishValue;
+        }
+
+        case "finish-array-element": {
+          const arrayState = this.stackTop() as FinishArrayElement;
+          const index = ++arrayState.index;
+          const length = arrayState.length;
+
+          if (index >= length) {
+            if (index > length)
+              throw new TypeError("INTERNAL BUG");
+
+            this.exitObject();
+            this.indent = arrayState.indent;
+            yield arrayState.end;
+            break toFinishValue;
+          }
+
+          const { object: array, separator } = arrayState;
+          yield separator;
+          key = String(index);
+          holder = array as unknown as Record<string, unknown>;
+          val = array[index];
+          state = "nullable-value";
+          continue toArrayElementOrObjectPropertyValue;
+        }
+
+        case "find-unfiltered-object-member": {
+          const objectState = this.stackTop() as FindUnfilteredObjectMember;
+          const { object, index, props: keys } = objectState;
+
+          if (index >= keys.length) {
+            if (index > keys.length)
+              throw new TypeError("INTERNAL BUG");
+
+            this.exitObject();
+            yield "{}";
+            break toFinishValue;
+          }
+
+          key = keys[index];
+          const v = this.preprocessValue(object[key], object, key);
+          if (v !== undefined) {
+            const stepBack = this.indent;
+            this.indent += this.gap;
+
+            // In theory `this.indent` could grow long enough to require `emitLengthy`
+            // here.  We ignore the concern for now.
+            const [opening, colon, comma, closing] =
+              this.gap === "" ? ["{", ":", ",", "}"] : [`{\n${this.indent}`, ": ", `,\n${this.indent}`, `\n${stepBack}}`];
+
+            yield* this.lengthyFragment(`${opening}${JSONStringify(keys[index])}${colon}`);
+
+            val = v;
+            holder = object;
+            this.stack[this.stack.length - 1] = {
+              state: "after-unfiltered-object-member",
+              object,
+              colon,
+              comma,
+              closing,
+              indent: stepBack,
+              index: index + 1,
+              props: keys,
+            } satisfies AfterUnfilteredObjectMember;
+
+            state = "filterable-value";
+            continue toArrayElementOrObjectPropertyValue;
+          }
+
+          objectState.index++;
+          continue toArrayElementOrObjectPropertyValue;
+        }
+
+        case "after-unfiltered-object-member": {
+          const objectState = this.stackTop() as AfterUnfilteredObjectMember;
+          const { object, props: keys } = objectState;
+          const index = objectState.index;
+
+          if (index >= keys.length) {
+            if (index > keys.length)
+              throw new TypeError("INTERNAL BUG");
+
+            this.exitObject();
+            this.indent = objectState.indent;
+            yield objectState.closing;
+            break toFinishValue;
+          }
+
+          key = keys[index];
+          const v = this.preprocessValue(object[key], object, key);
+          if (v !== undefined) {
+            const { comma, colon } = objectState;
+
+            yield* this.lengthyFragment(`${comma}${JSONStringify(keys[index])}${colon}`);
+            val = v;
+            holder = object;
+            state = "filterable-value";
+          }
+
+          objectState.index++;
+          continue toArrayElementOrObjectPropertyValue;
+        }
+
+        default: {
+          type assert_AllStatesHandled = Expect<Equal<typeof state, never>>;
+        }
+      }
+
+      if (this.stack.length === 0)
+        break;
+
+      state = this.stackTop().state;
+    } while (true);
+  }
+
+  /**
+   * If a property whose value is `value` would be excluded from JSON
+   * stringification -- if `value` is `undefined`, a symbol, or a callable
+   * object value --  return `undefined`.
+   *
+   * If attempting to stringify `value` must throw a `TypeError` (i.e. it's a
+   * `bigint` or a boxed `bigint`), throw that `TypeError`.
+   *
+   * Otherwise return a value that JSON stringifies as `value` will.  (This will
+   * substitute in the result of a `toJSON` function call and unbox boxed
+   * primitives.)
+   *
+   * Callers potentially stringifying `value` should call this function, handle
+   * `undefined` appropriately for the context if it's returned, or else
+   * stringify the returned value as per context.
+   *
+   * In the spec, `holder` is always an object -- even if it can't be observed
+   * because `replacer` isn't a function.  We relax this to allow `null` when
+   * `holder` can't be observed.
+   */
+  protected preprocessValue(
+    value: unknown,
+    holder: object | null,
+    key: string,
+  ): StringifiableValue | undefined {
+    switch (typeof value) {
+      // @ts-expect-error intentional fallthrough
+      case "object":
+        if (value === null)
+          break;
+      case "function":
+      case "bigint":
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- required by spec
+        const toJSON = (value as any).toJSON as unknown;
+        if (typeof toJSON === "function")
+          value = ReflectApply(toJSON, value, [key]);
+        break;
+      default:
+        break;
+    }
+
+    if (this.replacer)
+      value = ReflectApply(this.replacer, holder, [key, value]);
+
+    if (value === null)
+      return value;
+
+    if (typeof value === "object") {
+      if (value instanceof Number)
+        value = ToNumber(value);
+      else if (value instanceof String)
+        value = ToString(value);
+      else if (value instanceof Boolean)
+        value = ExtractBooleanData(value);
+      else if (value instanceof BigInt)
+        value = ExtractBigIntData(value);
+    }
+
+    switch (typeof value) {
+      case "string":
+      case "number":
+      case "boolean":
+      case "object":
+        return value;
+      case "symbol":
+      case "undefined":
+      case "function":
+        return undefined;
+      case "bigint":
+        throw new TypeError("Can't serialize bigint");
+    }
+  }
+};
+
+/**
+ * Generate successive fragments of the JSON stringification of a value, as if
+ * for `JSON.stringify(value, replacer, space)` except that:
+ *
+ *   * The semantics simplifications implied by the types of `value`,
+ *     `replacer_`, and `space` are performed.
+ *   * If `value` itself is not stringifiable (e.g. it's `undefined`, a symbol,
+ *     or is callable), *this function will yield no fragments at all*.  (Note
+ *     that in this case `JSON.stringify` returns not a string but rather
+ *     `undefined`.)  Therefore users of this against insufficiently-restrained
+ *     values *must* verify that the generated fragments constitute a non-empty
+ *     string.
+ *
+ * Fragments will be generated until the entire stringification has been
+ * returned or until some intermediate error is encountered (and the associated
+ * `next()` call will throw).
+ *
+ * @param value
+ *   The value to stringify.
+ * @param
+ *   A property list identifying the properties to include in stringification,
+ *   or a replacer function to call that can modify or eliminate values encoded
+ *   in the ultimate stringification -- or `null` or `undefined` if no
+ *   replacement or limitation of properties is to occur.
+ * @param space
+ *   A `space` string/number controlling the presence of added whitespace within
+ *   the stringification.
+ * @throws
+ *   If the stringification operation would throw an exception value, that
+ *   exception value is thrown during the relevant `next()`.
+ */
+export function stringify(
+  value: unknown,
+  replacer: ReplacerFunction | ReplacerPropertyList | NoReplacer,
+  space: string | number,
+): Generator<string, void, void> {
+  return new StringifyGenerator(replacer, space).run(value);
+}
