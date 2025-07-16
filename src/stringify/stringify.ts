@@ -511,35 +511,63 @@ class StringifyGenerator {
 };
 
 /**
- * Generate successive fragments of the JSON stringification of a value, as if
- * for `JSON.stringify(value, replacer, space)` except that:
+ * Create an iterator over successive fragments of the JSON stringification of a
+ * value, as if by `JSON.stringify(value, replacer, space)`.  Fragments are
+ * generated until the entire stringification has been returned.  Where fragment
+ * boundaries occur is explicitly not defined: do not attempt to infer or rely
+ * upon boundary locations.
  *
- *   * The semantics simplifications implied by the types of `value`,
- *     `replacer_`, and `space` are performed.
- *   * If `value` itself is not stringifiable (e.g. it's `undefined`, a symbol,
- *     or is callable), *this function will yield no fragments at all*.  (Note
- *     that in this case `JSON.stringify` returns not a string but rather
- *     `undefined`.)  Therefore users of this against insufficiently-restrained
- *     values *must* verify that the generated fragments constitute a non-empty
- *     string.
+ * If the incremental stringification operations performed during a `next()`
+ * throw an exception, that exception will be thrown by `next()`.
  *
- * Fragments will be generated until the entire stringification has been
- * returned or until some intermediate error is encountered (and the associated
- * `next()` call will throw).
+ * ```js
+ * import { stringify } from "@jswalden/streaming-json";
+ *
+ * const iter = stringify([1, { toJSON() { throw 42; } }, 3], null, 0);
+ *
+ * let result;
+ *
+ * // These fragment boundaries are not guaranteed.  This example merely
+ * // demonstrates the exception propagation behavior.
+ * result = iter.next();
+ * assert(!result.done && result.value === "[");
+ *
+ * result = iter.next();
+ * assert(!result.done && result.value === "1");
+ *
+ * result = iter.next();
+ * assert(!result.done && result.value === ",");
+ *
+ * assertThrows(() => iter.next(), 42);
+ * ```
+ *
+ * If `value` itself is not stringifiable (e.g. it's `undefined`, a symbol, or
+ * is callable), *the generator will yield no fragments*.  (Note that in this
+ * case `JSON.stringify` returns `undefined`, not a string.)
+ *
+ * ```js
+ * import { stringify } from "@jswalden/streaming-json";
+ *
+ * const cantStringify = undefined;
+ * assert(JSON.stringify(cantStringify, undefined, 2) === undefined);
+ * assert([...stringify(cantStringify, undefined, 2)].length === 0);
+ * ```
+ *
+ * If you use this function on insufficiently-restricted values, you must verify
+ * that the generated fragments constitute a non-empty string.
  *
  * @param value
  *   The value to stringify.
- * @param
+ * @param replacer
  *   A property list identifying the properties to include in stringification,
  *   or a replacer function to call that can modify or eliminate values encoded
- *   in the ultimate stringification -- or `null` or `undefined` if no
- *   replacement or limitation of properties is to occur.
+ *   in the ultimate stringification -- or `null`/`undefined` if no replacement
+ *   or limitation of properties is needed.
  * @param space
- *   A `space` string/number controlling the presence of added whitespace within
- *   the stringification.
- * @throws
- *   If the stringification operation would throw an exception value, that
- *   exception value is thrown during the relevant `next()`.
+ *   If a number, contents will be pretty-printed using that many U+0020 SPACE
+ *   characters as indentation.  Otherwise up to the first ten characters of a
+ *   supplied string will be used as indentation.  If the requested indentation
+ *   is an empty string, no pretty-printing will occur.
  */
 export function stringify(
   value: unknown,
