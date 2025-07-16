@@ -14,68 +14,60 @@ observably disturb the intermediate states created by ECMAScript semantics.)
 
 ## Stringification
 
-This package implements two stringification function entrypoints: `stringify`
-and `stringifyAsync`.  You can either import the specific function you need:
+This package implements a `stringify` function that returns an iterator over the
+fragments that constitute the JSON stringification of a value.  You can either
+import `stringify` directly:
 
 ```js
-import { stringifyAsync } from "@jswalden/streaming-json";
+import { stringify } from "@jswalden/streaming-json";
 
-async function writeJSONToFileAsync(value, file) {
-  for await (const frag of stringifyAsync(value, null, "  ")) {
+async function writeAsJSONToFileAsync(value, file) {
+  for (const frag of stringify(value, null, "  ")) {
     await file.write(frag);
   }
 }
 ```
 
-Or you can do a wildcard import of the and use it similar to how you would use
-the `JSON` object:
+Or you import the module as a wildcard, with resulting aesthetics similar to
+using `JSON.stringify` itself:
 
 ```js
 import * as StreamingJSON from "@jswalden/streaming-json";
 
-async function writeJSONToFileAsync(value, file) {
-  for await (const frag of StreamingJSON.stringifyAsync(value, null, "  ")) {
+async function writeAsJSONToFileAsync(value, file) {
+  for (const frag of StreamingJSON.stringify(value, null, "  ")) {
     await file.write(frag);
   }
 }
-
-function writeJSONToFile(value, file) {
-  for (const frag of StreamingJSON.stringify(value, null, "  "))
-    file.write(frag);
-}
 ```
 
-`stringify` and `stringifyAsync` implement JSON stringification where it's
-undesirable (or impossible, because the entire stringification is too large
-to represent as a JS string or in memory) to compute the entire JSON string at
-once.  They accept the same arguments as `JSON.stringify` (albeit with certain
-narrowing of types for clearer code).  Each returns a generator yielding
-(asynchronously, for `stringifyAsync`) successive fragments of the overall JSON
-stringification.[^between-emits]
+`stringify` implements JSON stringification where it's undesirable (or
+impossible because the entire stringification is too large to represent as a JS
+string or in memory) to compute the entire JSON string at once.  It accepts the
+same arguments as `JSON.stringify` (albeit with narrower types to make clearer
+code).  It returns an iterator that yields successive fragments of the overall
+JSON stringification.[^between-emits]
 
 [^between-emits]: If the object graph being stringified is modified between
-calls to the generator's `next()` function (or between the asynchronously
-performed jobs triggered by `next()` that compose the `stringifyAsync`
-algorithm), stringification behavior will be changed in potentially
-unpredictable ways.  You should take care to protect your value being
-stringified from modification during the stringification process to prevent
-confusing behavior.
+calls to the iterator's `next()` function, stringification behavior will change
+in potentially unexpected ways.  You should take care to protect your value
+being stringified from modification during the stringification process to
+prevent confusing behavior.
 
-How stringification is broken into fragments is not defined.  Thus for example
-`stringify(true, null, "")` might successively yield `"t"`, `"ru"`, `"e"`
-&mdash; or instead simply `"true"`.  Don't try to infer where fragmentation
-boundaries will appear!
+Where fragment boundaries are placed is explicitly not defined.  Thus for
+example `stringify(true, null, "")` might successively yield `"t"`, `"ru"`,
+`"e"` &mdash; or instead simply `"true"`.  Don't make semantically visible
+distinctions based on where these boundaries occur!
 
-If any operation in the stringification algorithm throws (e.g. property gets,
-`toJSON` invocations, stray `bigint` values in the graph), the `next()` call
-that triggers it will throw that value (or reject the returned promise, for
-`stringifyAsync`).
+If any operation during iteration throws (e.g. property gets, `toJSON`
+invocations, stray `bigint` values in the graph), the `next()` call that
+triggers that operation will throw that value.
 
-As long as type signatures are respected, the stringification performed by these
-functions is consistent with `JSON.stringify(value, replacer, space)`.  However,
-one special case must be noted: cases where `JSON.stringify` would return the
-literal value `undefined` and not a string value.[^stringify-not-string]  We
-handle such cases by yielding no fragments:
+As long as type signatures are respected, the stringification performed by
+`stringify` is the same as `JSON.stringify(value, replacer, space)` performs.
+However, one special case must be noted: if `JSON.stringify` would return the
+literal value `undefined` and not a string value[^stringify-not-string], the
+iterator returned by `stringify` will produce no fragments:
 
 ```js
 import { stringify } from "@jswalden/streaming-json";
@@ -83,14 +75,14 @@ import { stringify } from "@jswalden/streaming-json";
 const value = () => 42;
 
 let res = JSON.stringify(value, null, 2);
-assert(res === undefined);
+assert(res === undefined); // not a string value!
 
 let frags = [...stringify(value, null, 2)];
 assert(frags.length === 0);
 ```
 
-It's incumbent upon users who try to stringify sufficiently-broad values that
-they appropriately handle the case where no fragments are yielded.
+It's incumbent upon users who try to stringify sufficiently-broad values to
+appropriately handle no fragments being iterated.
 
 [^stringify-not-string]: `JSON.stringify` returns `undefined` if the `value`
 passed to it is `undefined`, a
