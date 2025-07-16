@@ -24,7 +24,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": true,
     "skipLibCheck": true,
-    "removeComments": true,
   },
   "compileOnSave": true,
 }
