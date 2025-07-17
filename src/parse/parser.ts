@@ -81,8 +81,6 @@ function IsHexDigit(c: string): boolean {
  * fragment that makes the combination invalid will throw a `SyntaxError`.
  * Fragments will continue to be parsed until either an error is detected or
  * until the parsed prefix is invalid JSON.
- * Because JSON can be surrounded by whitespace, it can in principle parse an
- * infinitely long overall
  *
  * @throws
  *   A `SyntaxError` at the earliest instant that it's known that the combined
