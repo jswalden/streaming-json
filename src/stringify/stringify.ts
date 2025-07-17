@@ -92,8 +92,7 @@ export type ReplacerFunction = ((this: object, key: string, value: unknown) => u
 export type NoReplacer = undefined | null;
 
 const enum State {
-  FilterableValue,
-  NullableValue,
+  StringifiableValue,
   FinishArrayElement,
   FindUnfilteredObjectMember,
   AfterUnfilteredObjectMember,
@@ -178,8 +177,6 @@ class StringifyGenerator {
     const stepBack = this.indent;
     this.indent += this.gap;
 
-    // In theory `this.indent` could grow long enough to require `emitLengthy`
-    // here.  We ignore the concern for now.
     const [begin, separator, end] =
       this.gap === "" ? ["[", ",", "]"] : [`[\n${this.indent}`, `,\n${this.indent}`, `\n${stepBack}]`];
 
@@ -218,111 +215,26 @@ class StringifyGenerator {
   }
 
   * run(value: unknown): Generator<string, void, void> {
-    let key = "";
-    let holder: Record<string, unknown> | null = this.replacer ? { [key]: value } : null;
-    let val: unknown = value;
+    let sval: StringifiableValue;
+    {
+      const v: StringifiableValue | undefined = this.preprocessValue(
+        value,
+        this.replacer ? { "": value } : null,
+        "",
+      );
+      if (typeof v === "undefined")
+        return;
 
-    let state: State = State.FilterableValue;
-    toArrayElementOrObjectPropertyValue: do {
+      sval = v;
+    }
+
+    let state = State.StringifiableValue;
+    processingElementOrPropertyValue: do {
       toFinishValue: switch (state) {
-        case State.FilterableValue: {
-          const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
-          if (v === undefined)
-            break toFinishValue;
-
-          if (IsArray(v)) {
-            this.checkAcyclic(v);
-
-            const length = LengthOfArrayLike(v);
-            if (length === 0) {
-              yield "[]";
-              break toFinishValue;
-            }
-
-            yield this.enterArray(v, length);
-            key = "0";
-            holder = v as unknown as Record<string, unknown>;
-            val = v[0];
-            state = State.NullableValue;
-            continue toArrayElementOrObjectPropertyValue;
-          }
-
-          if (v === null) {
-            yield "null";
-            break toFinishValue;
-          }
-
-          if (typeof v === "object") {
-            this.checkAcyclic(v);
-
-            const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
-            this.enterObject(v, props);
-            state = State.FindUnfilteredObjectMember;
-            continue toArrayElementOrObjectPropertyValue;
-          }
-
-          type assert_ValueTypeIs = Expect<
-            Equal<
-              typeof v,
-              boolean | number | string
-            >
-          >;
-          const frag = JSONStringify(v);
-
-          if (typeof v === "string")
-            yield* this.lengthyFragment(frag);
-          else
-            yield frag;
-          break toFinishValue;
-        }
-
-        case State.NullableValue: {
-          const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
-          if (v === undefined || v === null) {
-            yield "null";
-            break toFinishValue;
-          }
-
-          if (IsArray(v)) {
-            this.checkAcyclic(v);
-
-            const length = LengthOfArrayLike(v);
-            if (length === 0) {
-              yield "[]";
-              break toFinishValue;
-            }
-
-            yield this.enterArray(v, length);
-            key = "0";
-            holder = v as unknown as Record<string, unknown>;
-            val = v[0];
-            continue toArrayElementOrObjectPropertyValue;
-          }
-
-          if (typeof v === "object") {
-            this.checkAcyclic(v);
-
-            const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
-            this.enterObject(v, props);
-            state = State.FindUnfilteredObjectMember;
-            continue toArrayElementOrObjectPropertyValue;
-          }
-
-          type assert_ValueTypeIs = Expect<
-            Equal<
-              typeof v,
-              boolean | number | string
-            >
-          >;
-          const frag = JSONStringify(v);
-
-          if (typeof v === "string")
-            yield* this.lengthyFragment(frag);
-          else
-            yield frag;
-          break toFinishValue;
-        }
-
+        // We could make any other state fall through to `StringifyValue`.  We
+        // pick `FinishArrayElement` because array element stringification is
+        // tighter than object-property stringification.
+        // @ts-expect-error intentional fallthrough
         case State.FinishArrayElement: {
           const arrayState = this.stackTop() as FinishArrayElement;
           const index = ++arrayState.index;
@@ -334,94 +246,162 @@ class StringifyGenerator {
 
             this.exitObject();
             this.indent = arrayState.indent;
+
+            // We ignore that `this.indent` might make this extremely long.
             yield arrayState.end;
             break toFinishValue;
           }
 
           const { object: array, separator } = arrayState;
+
+          // We ignore that `this.indent` might make this extremely long.
           yield separator;
-          key = String(index);
-          holder = array as unknown as Record<string, unknown>;
-          val = array[index];
-          state = State.NullableValue;
-          continue toArrayElementOrObjectPropertyValue;
+
+          sval = this.preprocessValue(array[index], array, ToString(index)) ?? null;
+
+          state = State.StringifiableValue;
+        }
+
+        case State.StringifiableValue: {
+          do {
+            if (sval === null) {
+              yield "null";
+              break toFinishValue;
+            }
+
+            if (!IsArray(sval))
+              break;
+
+            this.checkAcyclic(sval);
+
+            const length = LengthOfArrayLike(sval);
+            if (length === 0) {
+              yield "[]";
+              break toFinishValue;
+            }
+
+            // We ignore that `this.indent` might make this extremely long.
+            yield this.enterArray(sval, length);
+
+            sval = this.preprocessValue(sval[0], sval, "0") ?? null;
+          } while (true);
+
+          if (typeof sval === "object") {
+            this.checkAcyclic(sval);
+
+            const props = this.propertyList ?? EnumerableOwnPropertyKeys(sval);
+            this.enterObject(sval, props);
+
+            state = State.FindUnfilteredObjectMember;
+            continue processingElementOrPropertyValue;
+          }
+
+          type assert_ValueTypeIs = Expect<
+            Equal<
+              typeof sval,
+              boolean | number | string
+            >
+          >;
+          const frag = JSONStringify(sval);
+
+          if (typeof sval === "string")
+            yield* this.lengthyFragment(frag);
+          else
+            yield frag;
+          break toFinishValue;
         }
 
         case State.FindUnfilteredObjectMember: {
           const objectState = this.stackTop() as FindUnfilteredObjectMember;
-          const { object, index, props: keys } = objectState;
+          const { object, props: keys } = objectState;
 
-          if (index >= keys.length) {
-            if (index > keys.length)
-              throw new TypeError("INTERNAL BUG");
+          // Loop looking for the first property with stringifiable value.
+          let v: StringifiableValue | undefined;
+          let index = objectState.index;
+          let key: string;
+          foundUnfilteredProperty: do {
+            if (index >= keys.length) {
+              if (index > keys.length)
+                throw new TypeError("INTERNAL BUG");
 
-            this.exitObject();
-            yield "{}";
-            break toFinishValue;
-          }
+              this.exitObject();
+              yield "{}";
+              break toFinishValue;
+            }
 
-          key = keys[index];
-          const v = this.preprocessValue(object[key], object, key);
-          if (v !== undefined) {
-            const stepBack = this.indent;
-            this.indent += this.gap;
+            key = keys[index];
+            v = this.preprocessValue(object[key], object, key);
+            if (typeof v !== "undefined")
+              break foundUnfilteredProperty;
 
-            // In theory `this.indent` could grow long enough to require `emitLengthy`
-            // here.  We ignore the concern for now.
-            const [opening, colon, comma, closing] =
-              this.gap === "" ? ["{", ":", ",", "}"] : [`{\n${this.indent}`, ": ", `,\n${this.indent}`, `\n${stepBack}}`];
+            index++;
+          } while (true);
 
-            yield* this.lengthyFragment(`${opening}${JSONStringify(keys[index])}${colon}`);
+          const stepBack = this.indent;
+          this.indent += this.gap;
 
-            val = v;
-            holder = object;
-            this.stack[this.stack.length - 1] = {
-              state: State.AfterUnfilteredObjectMember,
-              object,
-              colon,
-              comma,
-              closing,
-              indent: stepBack,
-              index: index + 1,
-              props: keys,
-            } satisfies AfterUnfilteredObjectMember;
+          const [opening, colon, comma, closing] = this.gap === ""
+            ? ["{", ":", ",", "}"]
+            : [`{\n${this.indent}`, ": ", `,\n${this.indent}`, `\n${stepBack}}`];
 
-            state = State.FilterableValue;
-            continue toArrayElementOrObjectPropertyValue;
-          }
+          yield* this.lengthyFragment(`${opening}${JSONStringify(key)}${colon}`);
 
-          objectState.index++;
-          continue toArrayElementOrObjectPropertyValue;
+          this.stack[this.stack.length - 1] = {
+            state: State.AfterUnfilteredObjectMember,
+            object,
+            colon,
+            comma,
+            closing,
+            indent: stepBack,
+            index: index + 1,
+            props: keys,
+          } satisfies AfterUnfilteredObjectMember;
+
+          sval = v;
+
+          state = State.StringifiableValue;
+          continue processingElementOrPropertyValue;
         }
 
         case State.AfterUnfilteredObjectMember: {
           const objectState = this.stackTop() as AfterUnfilteredObjectMember;
           const { object, props: keys } = objectState;
-          const index = objectState.index;
 
-          if (index >= keys.length) {
-            if (index > keys.length)
-              throw new TypeError("INTERNAL BUG");
+          let v: StringifiableValue | undefined;
+          let index = objectState.index;
+          let key: string;
+          foundUnfilteredProperty: do {
+            if (index >= keys.length) {
+              if (index > keys.length)
+                throw new TypeError("INTERNAL BUG");
 
-            this.exitObject();
-            this.indent = objectState.indent;
-            yield objectState.closing;
-            break toFinishValue;
-          }
+              this.exitObject();
+              this.indent = objectState.indent;
 
-          key = keys[index];
-          const v = this.preprocessValue(object[key], object, key);
-          if (v !== undefined) {
-            const { comma, colon } = objectState;
+              // We ignore that `this.indent` might make this extremely long.
+              yield objectState.closing;
+              break toFinishValue;
+            }
 
-            yield* this.lengthyFragment(`${comma}${JSONStringify(keys[index])}${colon}`);
-            val = v;
-            holder = object;
-            state = State.FilterableValue;
-          }
+            key = keys[index];
 
-          objectState.index++;
-          continue toArrayElementOrObjectPropertyValue;
+            v = this.preprocessValue(object[key], object, key);
+            if (typeof v !== "undefined")
+              break foundUnfilteredProperty;
+
+            index++;
+          } while (true);
+
+          const { comma, colon } = objectState;
+
+          yield* this.lengthyFragment(`${comma}${JSONStringify(key)}${colon}`);
+
+          objectState.index = index + 1;
+
+          sval = v;
+
+          state = State.StringifiableValue;
+          continue processingElementOrPropertyValue;
         }
 
         default: {
