@@ -91,16 +91,17 @@ export type ReplacerFunction = ((this: object, key: string, value: unknown) => u
 /** No replacer. */
 export type NoReplacer = undefined | null;
 
-type State =
-  "filterable-value" |
-  "nullable-value" |
-  "finish-array-element" |
-  "find-unfiltered-object-member" |
-  "after-unfiltered-object-member";
+const enum State {
+  FilterableValue,
+  NullableValue,
+  FinishArrayElement,
+  FindUnfilteredObjectMember,
+  AfterUnfilteredObjectMember,
+};
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type FinishArrayElement = {
-  readonly state: "finish-array-element";
+  readonly state: State.FinishArrayElement;
   readonly indent: string;
   readonly separator: string;
   readonly end: string;
@@ -111,7 +112,7 @@ type FinishArrayElement = {
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type FindUnfilteredObjectMember = {
-  readonly state: "find-unfiltered-object-member";
+  readonly state: State.FindUnfilteredObjectMember;
   readonly object: Record<string, unknown>;
   index: number;
   readonly props: readonly string[];
@@ -119,7 +120,7 @@ type FindUnfilteredObjectMember = {
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type AfterUnfilteredObjectMember = {
-  readonly state: "after-unfiltered-object-member";
+  readonly state: State.AfterUnfilteredObjectMember;
   readonly indent: string;
   readonly colon: string;
   readonly comma: string;
@@ -183,7 +184,7 @@ class StringifyGenerator {
       this.gap === "" ? ["[", ",", "]"] : [`[\n${this.indent}`, `,\n${this.indent}`, `\n${stepBack}]`];
 
     Push(this.stack, {
-      state: "finish-array-element",
+      state: State.FinishArrayElement,
       indent: stepBack,
       separator,
       end,
@@ -200,7 +201,7 @@ class StringifyGenerator {
     // `this.indent` is adjusted only once the first non-filtered property is
     // encountered.
     Push(this.stack, {
-      state: "find-unfiltered-object-member",
+      state: State.FindUnfilteredObjectMember,
       object: object as Record<string, unknown>,
       index: 0,
       props,
@@ -221,10 +222,10 @@ class StringifyGenerator {
     let holder: Record<string, unknown> | null = this.replacer ? { [key]: value } : null;
     let val: unknown = value;
 
-    let state: State = "filterable-value";
+    let state: State = State.FilterableValue;
     toArrayElementOrObjectPropertyValue: do {
       toFinishValue: switch (state) {
-        case "filterable-value": {
+        case State.FilterableValue: {
           const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
           if (v === undefined)
             break toFinishValue;
@@ -242,7 +243,7 @@ class StringifyGenerator {
             key = "0";
             holder = v as unknown as Record<string, unknown>;
             val = v[0];
-            state = "nullable-value";
+            state = State.NullableValue;
             continue toArrayElementOrObjectPropertyValue;
           }
 
@@ -256,7 +257,7 @@ class StringifyGenerator {
 
             const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
             this.enterObject(v, props);
-            state = "find-unfiltered-object-member";
+            state = State.FindUnfilteredObjectMember;
             continue toArrayElementOrObjectPropertyValue;
           }
 
@@ -275,7 +276,7 @@ class StringifyGenerator {
           break toFinishValue;
         }
 
-        case "nullable-value": {
+        case State.NullableValue: {
           const v: StringifiableValue | undefined = this.preprocessValue(val, holder, key);
           if (v === undefined || v === null) {
             yield "null";
@@ -295,7 +296,7 @@ class StringifyGenerator {
             key = "0";
             holder = v as unknown as Record<string, unknown>;
             val = v[0];
-            state = "nullable-value";
+            state = State.NullableValue;
             continue toArrayElementOrObjectPropertyValue;
           }
 
@@ -304,7 +305,7 @@ class StringifyGenerator {
 
             const props = this.propertyList ?? EnumerableOwnPropertyKeys(v);
             this.enterObject(v, props);
-            state = "find-unfiltered-object-member";
+            state = State.FindUnfilteredObjectMember;
             continue toArrayElementOrObjectPropertyValue;
           }
 
@@ -323,7 +324,7 @@ class StringifyGenerator {
           break toFinishValue;
         }
 
-        case "finish-array-element": {
+        case State.FinishArrayElement: {
           const arrayState = this.stackTop() as FinishArrayElement;
           const index = ++arrayState.index;
           const length = arrayState.length;
@@ -343,11 +344,11 @@ class StringifyGenerator {
           key = String(index);
           holder = array as unknown as Record<string, unknown>;
           val = array[index];
-          state = "nullable-value";
+          state = State.NullableValue;
           continue toArrayElementOrObjectPropertyValue;
         }
 
-        case "find-unfiltered-object-member": {
+        case State.FindUnfilteredObjectMember: {
           const objectState = this.stackTop() as FindUnfilteredObjectMember;
           const { object, index, props: keys } = objectState;
 
@@ -376,7 +377,7 @@ class StringifyGenerator {
             val = v;
             holder = object;
             this.stack[this.stack.length - 1] = {
-              state: "after-unfiltered-object-member",
+              state: State.AfterUnfilteredObjectMember,
               object,
               colon,
               comma,
@@ -386,7 +387,7 @@ class StringifyGenerator {
               props: keys,
             } satisfies AfterUnfilteredObjectMember;
 
-            state = "filterable-value";
+            state = State.FilterableValue;
             continue toArrayElementOrObjectPropertyValue;
           }
 
@@ -394,7 +395,7 @@ class StringifyGenerator {
           continue toArrayElementOrObjectPropertyValue;
         }
 
-        case "after-unfiltered-object-member": {
+        case State.AfterUnfilteredObjectMember: {
           const objectState = this.stackTop() as AfterUnfilteredObjectMember;
           const { object, props: keys } = objectState;
           const index = objectState.index;
@@ -417,7 +418,7 @@ class StringifyGenerator {
             yield* this.lengthyFragment(`${comma}${JSONStringify(keys[index])}${colon}`);
             val = v;
             holder = object;
-            state = "filterable-value";
+            state = State.FilterableValue;
           }
 
           objectState.index++;
