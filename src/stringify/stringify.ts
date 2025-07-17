@@ -296,7 +296,6 @@ class StringifyGenerator {
             key = "0";
             holder = v as unknown as Record<string, unknown>;
             val = v[0];
-            state = State.NullableValue;
             continue toArrayElementOrObjectPropertyValue;
           }
 
