@@ -165,6 +165,9 @@ class StringifyGenerator {
 
   /** Ensure we aren't already stringifying `obj`. */
   private checkAcyclic(obj: object): void {
+    // Accept quadratic cost for deep object graphs until someone complains.
+    // (Mozilla's `JSON.stringify` is quadratic this way, so there's precedent
+    // for ignoring the concern now.)
     if (ArrayFind(this.stack, (entry: SerializeEntry) => entry.object === obj))
       throw new TypeError("Attempting to stringify a cyclic object");
   }
