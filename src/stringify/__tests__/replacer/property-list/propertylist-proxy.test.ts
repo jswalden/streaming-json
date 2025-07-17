@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { stringifyToString } from "../../tostring.js";
+import { stringifyToString } from "../../helpers.js";
 
 describe("property list is proxy", () => {
   test("ToNumber(length property) side effects should occur only once", () => {

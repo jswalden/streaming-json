@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { stringifyToString } from "../tostring.js";
+import { stringifyToString } from "../helpers.js";
 import { stringify } from "../../../index.js";
 
 describe("boxing hijinks", () => {

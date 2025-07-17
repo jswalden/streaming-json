@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { StreamingJSONParser } from "../../../index.js";
-import { stringifyToString } from "../tostring.js";
+import { stringifyToString } from "../helpers.js";
 
 describe("roundtrip complex values", () => {
   test.each([

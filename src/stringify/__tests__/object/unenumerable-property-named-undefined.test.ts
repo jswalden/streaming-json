@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { stringifyToString } from "../tostring.js";
+import { stringifyToString } from "../helpers.js";
 
 // At one time an implementation goof meant that a non-own/enumerable property
 // named "undefined", whose value is stringifiable, was mistakenly included in

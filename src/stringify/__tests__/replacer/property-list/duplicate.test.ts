@@ -1,11 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 import { stringify } from "../../../../index.js";
+import { props } from "../../helpers.js";
 
 describe("duplicated property list item", () => {
-  const props = <T, P, R>(calls: [T, P, R][]) => {
-    return calls.map(([_target, prop, _receiver]) => prop);
-  };
-
   test("property", () => {
     const target = {
       x: 42,

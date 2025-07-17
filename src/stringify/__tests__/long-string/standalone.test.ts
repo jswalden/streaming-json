@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { stringifyToString } from "../tostring.js";
+import { stringifyToString } from "../helpers.js";
 import { Quantum } from "../../stringify.js";
 import { stringify } from "../../../index.js";
 
