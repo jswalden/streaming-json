@@ -49,7 +49,11 @@ type JSONToken =
   ColonToken |
   { type: "array-open" | "object-open" };
 
-type ParseState = "finish-array-element" | "finish-object-member" | "value";
+const enum ParseState {
+  FinishArrayElement,
+  FinishObjectMember,
+  Value,
+};
 
 function IsJSONWhitespace(c: string): boolean {
   return c === "\t" || c === "\r" || c === "\n" || c === " ";
@@ -453,10 +457,10 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   let value: JSONValue = "ERROR";
 
   let token: JSONToken;
-  let state: ParseState = "value";
+  let state = ParseState.Value as ParseState;
   toArrayElementOrObjectPropertyValue: do {
     toFinishValue: switch (state) {
-      case "value": {
+      case ParseState.Value: {
         token = yield* advance();
         processValueToken: do {
           switch (token.type) {
@@ -471,7 +475,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               break toFinishValue;
 
             case "array-open": {
-              Push(stack, ["finish-array-element", [] satisfies PartialArray]);
+              Push(stack, [ParseState.FinishArrayElement, [] satisfies PartialArray]);
               token = yield* advance();
               if (token.type === "array-close") {
                 value = Pop(stack)[1];
@@ -483,7 +487,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
             case "object-open": {
               const stackEntry = [{}, "PLACEHOLDER"] satisfies PartialObjectAndPendingProperty;
-              Push(stack, ["finish-object-member", stackEntry]);
+              Push(stack, [ParseState.FinishObjectMember, stackEntry]);
               const propertyOrClose = yield* advanceAfterObjectOpen();
               if (propertyOrClose.type === "object-close") {
                 value = Pop(stack)[1][0];
@@ -510,7 +514,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         } while (true);
       }
 
-      case "finish-object-member": {
+      case ParseState.FinishObjectMember: {
         const objectInfo = stack[stack.length - 1] as [ParseState, PartialObjectAndPendingProperty];
         const [partialObj, pendingProperty] = objectInfo[1];
         CreateDataProperty(partialObj, pendingProperty, value);
@@ -533,11 +537,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
         yield* advanceColon();
 
-        state = "value";
+        state = ParseState.Value;
         continue toArrayElementOrObjectPropertyValue;
       }
 
-      case "finish-array-element": {
+      case ParseState.FinishArrayElement: {
         const arrayInfo = stack[stack.length - 1] as [ParseState, PartialArray];
         Push(arrayInfo[1], value);
         if (yield* advanceArrayEnds()) {
@@ -545,7 +549,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
           break toFinishValue;
         }
 
-        state = "value";
+        state = ParseState.Value;
         continue toArrayElementOrObjectPropertyValue;
       }
     }
