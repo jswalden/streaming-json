@@ -478,8 +478,13 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               stackEntry[1] = yield* jsonString();
               yield* advanceColon();
 
-              token = yield* advance();
-              continue processValueToken;
+              type assert_stateIsAlreadyValue = Expect<
+                Equal<
+                  typeof state,
+                  ParseState.Value
+                >
+              >;
+              continue toArrayElementOrObjectPropertyValue;
             }
 
             case TokenType.ArrayClose:
