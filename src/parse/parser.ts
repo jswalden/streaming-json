@@ -21,33 +21,20 @@ type JSONArray = JSONValue[];
  */
 export type JSONValue = number | string | boolean | null | JSONArray | JSONObject;
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type StringToken = { type: "string"; value: string };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type NumberToken = { type: "number"; value: number };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type BooleanToken = { type: "boolean"; value: boolean };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type NullToken = { type: "null" };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type ObjectCloseToken = { type: "object-close" };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type ArrayCloseToken = { type: "array-close" };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type CommaToken = { type: "comma" };
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type ColonToken = { type: "colon" };
+const enum TokenType {
+  String,
+  Number,
+  Boolean,
+  Null,
+  ObjectOpen,
+  ObjectClose,
+  ArrayOpen,
+  ArrayClose,
+  Comma,
+  Colon,
+};
 
-type JSONToken =
-  | StringToken |
-  NumberToken |
-  BooleanToken |
-  NullToken |
-  ObjectCloseToken |
-  ArrayCloseToken |
-  CommaToken |
-  ColonToken |
-  { type: "array-open" | "object-open" };
+type TokenValue = boolean | string | number | null;
 
 const enum ParseState {
   FinishArrayElement,
@@ -324,23 +311,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     return ParseFloat(numText);
   };
 
-  const advanceAfterObjectOpen = function* (): Generator<void, ObjectCloseToken | StringToken, string> {
-    yield* consumeWhitespace();
-
-    if (atEnd() && (yield* atEOF()))
-      throw new SyntaxError("End of data while reading object contents");
-
-    const c = fragment[current];
-    if (c === '"')
-      return { type: "string", value: yield* jsonString() };
-
-    if (c === "}") {
-      current++;
-      return { type: "object-close" };
-    }
-
-    throw new SyntaxError("Expected property name or '}'");
-  };
+  let tokenValue: TokenValue = null as TokenValue;
 
   const advanceColon = function* (): Generator<void, void, string> {
     yield* consumeWhitespace();
@@ -384,7 +355,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     throw new SyntaxError("Expected property name or '}'");
   };
 
-  const advance = function* (): Generator<void, JSONToken, string> {
+  const advance = function* (): Generator<void, TokenType, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
@@ -392,7 +363,8 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
     switch (fragment[current]) {
       case '"':
-        return { type: "string", value: yield* jsonString() };
+        tokenValue = yield* jsonString();
+        return TokenType.String;
 
       case "-":
       case "0":
@@ -405,41 +377,45 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       case "7":
       case "8":
       case "9":
-        return { type: "number", value: yield* jsonNumber() };
+        tokenValue = yield* jsonNumber();
+        return TokenType.Number;
 
       case "t":
         yield* consumeKeyword("true");
-        return { type: "boolean", value: true };
+        tokenValue = true;
+        return TokenType.Boolean;
 
       case "f":
         yield* consumeKeyword("false");
-        return { type: "boolean", value: false };
+        tokenValue = false;
+        return TokenType.Boolean;
 
       case "n":
         yield* consumeKeyword("null");
-        return { type: "null" };
+        tokenValue = null;
+        return TokenType.Null;
 
       case "[":
         current++;
-        return { type: "array-open" };
+        return TokenType.ArrayOpen;
       case "]":
         current++;
-        return { type: "array-close" };
+        return TokenType.ArrayClose;
 
       case "{":
         current++;
-        return { type: "object-open" };
+        return TokenType.ObjectOpen;
       case "}":
         current++;
-        return { type: "object-close" };
+        return TokenType.ObjectClose;
 
       case ",":
         current++;
-        return { type: "comma" };
+        return TokenType.Comma;
 
       case ":":
         current++;
-        return { type: "colon" };
+        return TokenType.Colon;
 
       default:
         throw new SyntaxError("Unexpected character");
@@ -454,28 +430,25 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
   let value: JSONValue = "ERROR";
 
-  let token: JSONToken;
+  let token: TokenType;
   let state = ParseState.Value as ParseState;
   toArrayElementOrObjectPropertyValue: do {
     toFinishValue: switch (state) {
       case ParseState.Value: {
         token = yield* advance();
         processValueToken: do {
-          switch (token.type) {
-            case "string":
-            case "number":
-            case "boolean":
-              value = token.value;
+          switch (token) {
+            case TokenType.String:
+            case TokenType.Number:
+            case TokenType.Boolean:
+            case TokenType.Null:
+              value = tokenValue;
               break toFinishValue;
 
-            case "null":
-              value = null;
-              break toFinishValue;
-
-            case "array-open": {
+            case TokenType.ArrayOpen: {
               Push(stack, [ParseState.FinishArrayElement, [] satisfies PartialArray]);
               token = yield* advance();
-              if (token.type === "array-close") {
+              if (token === TokenType.ArrayClose) {
                 value = Pop(stack)[1];
                 break toFinishValue;
               }
@@ -483,27 +456,37 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               continue processValueToken;
             }
 
-            case "object-open": {
+            case TokenType.ObjectOpen: {
               const stackEntry = [{}, "PLACEHOLDER"] satisfies PartialObjectAndPendingProperty;
               Push(stack, [ParseState.FinishObjectMember, stackEntry]);
-              const propertyOrClose = yield* advanceAfterObjectOpen();
-              if (propertyOrClose.type === "object-close") {
+
+              yield* consumeWhitespace();
+
+              if (atEnd() && (yield* atEOF()))
+                throw new SyntaxError("End of data while reading object contents");
+
+              const c = fragment[current];
+              if (c === "}") {
+                current++;
                 value = Pop(stack)[1][0];
                 break toFinishValue;
               }
 
-              stackEntry[1] = propertyOrClose.value;
+              if (c !== '"')
+                throw new SyntaxError("Expected property name or '}'");
+
+              stackEntry[1] = yield* jsonString();
               yield* advanceColon();
 
               token = yield* advance();
               continue processValueToken;
             }
 
-            case "array-close":
-            case "object-close":
-            case "colon":
-            case "comma":
-              throw new SyntaxError(`Encountered ${token.type} token in value context`);
+            case TokenType.ArrayClose:
+            case TokenType.ObjectClose:
+            case TokenType.Colon:
+            case TokenType.Comma:
+              throw new SyntaxError(`Encountered token with internal value ${token} in value context`);
 
             default: {
               type assert_AllCasesHandled = Expect<Equal<typeof token, never>>;
