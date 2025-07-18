@@ -432,7 +432,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
   let token: TokenType;
   let state = ParseState.Value as ParseState;
-  toArrayElementOrObjectPropertyValue: do {
+  toParseElementOrPropertyValue: do {
     toFinishValue: switch (state) {
       case ParseState.Value: {
         token = yield* advance();
@@ -484,7 +484,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
                   ParseState.Value
                 >
               >;
-              continue toArrayElementOrObjectPropertyValue;
+              continue toParseElementOrPropertyValue;
             }
 
             case TokenType.ArrayClose:
@@ -524,7 +524,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         yield* advanceColon();
 
         state = ParseState.Value;
-        continue toArrayElementOrObjectPropertyValue;
+        continue toParseElementOrPropertyValue;
       }
 
       case ParseState.FinishArrayElement: {
@@ -536,7 +536,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         }
 
         state = ParseState.Value;
-        continue toArrayElementOrObjectPropertyValue;
+        continue toParseElementOrPropertyValue;
       }
     }
 
