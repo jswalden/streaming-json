@@ -450,13 +450,13 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               break toFinishValue;
 
             case TokenType.ArrayOpen: {
-              Push(stack, [ParseState.FinishArrayElement, [] satisfies PartialArray]);
-              token = yield* advance();
-              if (token === TokenType.ArrayClose) {
-                value = Pop(stack)[1];
-                break toFinishValue;
-              }
+              value = [] satisfies PartialArray;
 
+              token = yield* advance();
+              if (token === TokenType.ArrayClose)
+                break toFinishValue;
+
+              Push(stack, [ParseState.FinishArrayElement, value]);
               continue processValueToken;
             }
 
