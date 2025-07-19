@@ -116,8 +116,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
       if (yield* atEOF())
         return;
-    }
-    while (true);
+    } while (true);
   };
 
   const consumeKeyword = function* (keyword: string): Generator<void, void, string> {
@@ -141,7 +140,6 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     current++;
 
     let value = "";
-
     do {
       if (atEnd() && (yield* atEOF()))
         throw new SyntaxError("Unterminated string literal");
@@ -315,7 +313,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     return ParseFloat(numText);
   };
 
-  let tokenValue: TokenValue = null as TokenValue;
+  let tokenValue = null as TokenValue;
 
   const advanceColon = function* (): Generator<void, void, string> {
     yield* consumeWhitespace();
@@ -427,10 +425,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   };
 
   type PartialArray = JSONValue[];
-  type PartialObject = Record<string, JSONValue | undefined>;
-  type PartialObjectAndPendingProperty = [PartialObject, string];
+  type ParsingArray = [ParseState.FinishArrayElement, PartialArray];
+  type PartialObject = Partial<JSONObject>;
+  type ParsingObject = [ParseState.FinishObjectMember, PartialObject, string];
 
-  const stack: [ParseState, PartialArray | PartialObjectAndPendingProperty][] = [];
+  const stack: (ParsingArray | ParsingObject)[] = [];
 
   let value: JSONValue = "ERROR";
 
@@ -477,13 +476,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               if (c !== '"')
                 throw new SyntaxError("Expected property name or '}'");
 
-              Push(
-                stack,
-                [
-                  ParseState.FinishObjectMember,
-                  [value, yield* jsonString()] satisfies PartialObjectAndPendingProperty,
-                ],
-              );
+              Push(stack, [ParseState.FinishObjectMember, value, yield* jsonString()]);
 
               yield* advanceColon();
 
@@ -510,12 +503,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       }
 
       case ParseState.FinishObjectMember: {
-        const objectInfo = stack[stack.length - 1] as [ParseState, PartialObjectAndPendingProperty];
-        const [partialObj, pendingProperty] = objectInfo[1];
-        CreateDataProperty(partialObj, pendingProperty, value);
+        const objectInfo = stack[stack.length - 1] as ParsingObject;
+        CreateDataProperty(objectInfo[1], objectInfo[2], value);
 
         if (yield* advanceObjectEnds()) {
-          value = Pop(stack)[1][0];
+          value = Pop(stack)[1];
           break toFinishValue;
         }
 
@@ -527,8 +519,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         if (fragment[current] !== '"')
           throw new Error("Expected property name");
 
-        const property = yield* jsonString();
-        objectInfo[1][1] = property;
+        objectInfo[2] = yield* jsonString();
 
         yield* advanceColon();
 
@@ -537,7 +528,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       }
 
       case ParseState.FinishArrayElement: {
-        const arrayInfo = stack[stack.length - 1] as [ParseState, PartialArray];
+        const arrayInfo = stack[stack.length - 1] as ParsingArray;
         Push(arrayInfo[1], value);
         if (yield* advanceArrayEnds()) {
           value = Pop(stack)[1];
