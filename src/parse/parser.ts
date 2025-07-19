@@ -461,8 +461,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
             }
 
             case TokenType.ObjectOpen: {
-              const stackEntry = [{}, "PLACEHOLDER"] satisfies PartialObjectAndPendingProperty;
-              Push(stack, [ParseState.FinishObjectMember, stackEntry]);
+              value = {} satisfies PartialObject;
 
               yield* consumeWhitespace();
 
@@ -472,14 +471,20 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               const c = fragment[current];
               if (c === "}") {
                 current++;
-                value = Pop(stack)[1][0];
                 break toFinishValue;
               }
 
               if (c !== '"')
                 throw new SyntaxError("Expected property name or '}'");
 
-              stackEntry[1] = yield* jsonString();
+              Push(
+                stack,
+                [
+                  ParseState.FinishObjectMember,
+                  [value, yield* jsonString()] satisfies PartialObjectAndPendingProperty,
+                ],
+              );
+
               yield* advanceColon();
 
               type assert_stateIsAlreadyValue = Expect<
