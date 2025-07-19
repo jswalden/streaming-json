@@ -56,6 +56,10 @@ function IsHexDigit(c: string): boolean {
     ("A" <= c && c <= "F"));
 }
 
+function BUG(msg: string): never {
+  throw new Error(`LOGIC ERROR: ${msg}`);
+}
+
 /**
  * Create a generator that incrementally parses as JSON a series of nonempty
  * fragments passed to the generator as arguments to its `next()` property.
@@ -98,7 +102,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   };
   const atEnd = (): boolean => {
     if (current > end)
-      throw new Error("LOGIC ERROR");
+      BUG("incremented current past end");
     return current === end;
   };
 
@@ -133,7 +137,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
   const jsonString = function* (): Generator<void, string, string> {
     if (atEnd() || fragment[current] !== '"')
-      throw new Error("LOGIC ERROR");
+      BUG("jsonString called while not at start of string");
     current++;
 
     let value = "";
@@ -204,12 +208,12 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
   const jsonNumber = function* (): Generator<void, number, string> {
     if (atEnd())
-      throw new Error("LOGIC ERROR");
+      BUG("jsonNumber called while at end of fragment");
 
     // ^-?(0|[1-9][0-9]+)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?$
     let c = fragment[current];
     if (!(c === "-" || ("0" <= c && c <= "9")))
-      throw new Error("LOGIC ERROR");
+      BUG("jsonNumber called while not at start of number");
 
     let numText = "";
 
