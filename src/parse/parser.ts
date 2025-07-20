@@ -5,7 +5,8 @@ import { Min } from "../stdlib/math.js";
 import { ParseDecimalDigits, ParseFloat, ParseHexDigits } from "../stdlib/number.js";
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
-import { StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
+import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
+import { Unicode } from "../utils/unicode.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -41,10 +42,6 @@ const enum ParseState {
   FinishObjectMember,
   Value,
 };
-
-function IsJSONWhitespace(c: string): boolean {
-  return c === "\t" || c === "\r" || c === "\n" || c === " ";
-}
 
 function IsAsciiDigit(c: string): boolean {
   return c.length === 1 && "0" <= c && c <= "9";
@@ -109,7 +106,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   const consumeWhitespace = function* (): Generator<void, void, string> {
     do {
       while (!atEnd()) {
-        if (!IsJSONWhitespace(fragment[current]))
+        const c = StringCharCodeAt(fragment, current);
+        if (!(c === Unicode.SP as number ||
+          c === Unicode.LF as number ||
+          c === Unicode.CR as number ||
+          c === Unicode.HT as number))
           return;
         current++;
       }

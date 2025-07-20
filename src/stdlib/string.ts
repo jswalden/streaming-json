@@ -16,3 +16,8 @@ export function StringSlice(s: string, start: number, limit: number): string {
 export function StringRepeat(s: string, count: number): string {
   return s.repeat(count);
 }
+
+/** Return the character code of `s[i]`. */
+export function StringCharCodeAt(s: string, i: number): number {
+  return s.charCodeAt(i);
+}
