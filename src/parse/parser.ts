@@ -2,11 +2,11 @@ import type { Equal, Expect } from "type-testing";
 import { IsArray, Pop, Push } from "../stdlib/array.js";
 import { LengthOfArrayLike } from "../stdlib/length.js";
 import { Min } from "../stdlib/math.js";
-import { ParseDecimalDigits, ParseFloat, ParseHexDigits } from "../stdlib/number.js";
+import { ParseDecimalDigits, ParseFloat } from "../stdlib/number.js";
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
-import { IsAsciiDigit as IsDigit, Unicode } from "../utils/unicode.js";
+import { HexDigitToNumber, IsAsciiDigit as IsDigit, Unicode } from "../utils/unicode.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -45,12 +45,6 @@ const enum ParseState {
 
 function IsAsciiDigit(c: string): boolean {
   return c.length === 1 && "0" <= c && c <= "9";
-}
-
-function IsHexDigit(c: string): boolean {
-  return c.length === 1 && (("0" <= c && c <= "9") ||
-    ("a" <= c && c <= "f") ||
-    ("A" <= c && c <= "F"));
 }
 
 function BUG(msg: string): never {
@@ -136,7 +130,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   };
 
   const jsonString = function* (): Generator<void, string, string> {
-    if (atEnd() || fragment[current] !== '"')
+    if (atEnd() || StringCharCodeAt(fragment, current) !== Unicode.QuotationMark as number)
       BUG("jsonString called while not at start of string");
     current++;
 
@@ -146,56 +140,59 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         throw new SyntaxError("Unterminated string literal");
 
       let c = fragment[current++];
-      if (c === '"')
+      let code = StringCharCodeAt(c, 0);
+      if (code === Unicode.QuotationMark as number)
         return value;
 
-      if (c <= "\u001F")
+      if (code < (Unicode.SP as number))
         throw new SyntaxError("Bad control character in string literal");
 
-      if (c === "\\") {
+      if (code === Unicode.Backslash as number) {
         if (atEnd() && (yield* atEOF()))
           throw new SyntaxError("Incomplete escape sequence");
 
         c = fragment[current++];
-        switch (c) {
-          case '"':
-          case "/":
-          case "\\":
+        code = StringCharCodeAt(c, 0);
+        switch (code) {
+          case Unicode.QuotationMark as number:
+          case Unicode.ForwardSlash as number:
+          case Unicode.Backslash as number:
             break;
-          case "b":
+          case Unicode.SmallLetterB as number:
             c = "\b";
             break;
-          case "f":
+          case Unicode.SmallLetterF as number:
             c = "\f";
             break;
-          case "n":
+          case Unicode.SmallLetterN as number:
             c = "\n";
             break;
-          case "r":
+          case Unicode.SmallLetterR as number:
             c = "\r";
             break;
-          case "t":
+          case Unicode.SmallLetterT as number:
             c = "\t";
             break;
-
-          case "u": {
-            let digits = "";
+          case Unicode.SmallLetterU as number: {
+            code = 0;
+            let digits = 0;
             do {
               if (atEnd() && (yield* atEOF()))
                 throw new SyntaxError("Too-short Unicode escape");
 
-              const amount = Min(4 - digits.length, end - current);
+              const amount = Min(4 - digits, end - current);
               for (let i = 0; i < amount; i++) {
-                if (!IsHexDigit(fragment[current + i]))
-                  throw new SyntaxError("Bad Unicode escape");
+                const n = HexDigitToNumber(fragment, current + i);
+                if (n === null)
+                  throw new SyntaxError(`Bad Unicode escape digit '${fragment[current + i]}'`);
+                code = (code << 4) | n;
               }
-              digits += StringSlice(fragment, current, current + amount);
+              digits += amount;
               current += amount;
-            } while (digits.length < 4);
-            c = StringFromCharCode(ParseHexDigits(digits));
+            } while (digits < 4);
+            c = StringFromCharCode(code);
             break;
           }
-
           default:
             throw new SyntaxError(`Bad escaped character '${c}'`);
         }
