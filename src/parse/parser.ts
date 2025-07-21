@@ -6,7 +6,7 @@ import { ParseDecimalDigits, ParseFloat } from "../stdlib/number.js";
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
-import { HexDigitToNumber, IsAsciiDigit as IsDigit, Unicode } from "../utils/unicode.js";
+import { HexDigitToNumber, IsAsciiDigit, Unicode } from "../utils/unicode.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -42,10 +42,6 @@ const enum ParseState {
   FinishObjectMember,
   Value,
 };
-
-function IsAsciiDigit(c: string): boolean {
-  return c.length === 1 && "0" <= c && c <= "9";
-}
 
 function BUG(msg: string): never {
   throw new Error(`LOGIC ERROR: ${msg}`);
@@ -208,27 +204,29 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
 
     // ^-?(0|[1-9][0-9]+)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?$
     let c = fragment[current];
-    if (!(c === "-" || ("0" <= c && c <= "9")))
+    let code = StringCharCodeAt(c, 0);
+    if (!(code === Unicode.Dash as number || IsAsciiDigit(code)))
       BUG("jsonNumber called while not at start of number");
 
     let numText = "";
 
     // -?
-    if (c === "-") {
+    if (code === Unicode.Dash as number) {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
         throw new SyntaxError("Missing number after '-'");
 
       c = fragment[current];
-      if (!("0" <= c && c <= "9"))
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
         throw new SyntaxError("Unexpected nondigit");
     }
 
     // 0|[1-9][0-9]+
     numText += c;
     current++;
-    if (c !== "0") {
+    if (code !== Unicode.Zero as number) {
       do {
         if (atEnd()) {
           if (yield* atEOF())
@@ -236,7 +234,8 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         }
 
         c = fragment[current];
-        if (!IsAsciiDigit(c))
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
           break;
 
         numText += c;
@@ -244,18 +243,20 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       } while (true);
     }
 
-    if (c !== "." && c !== "e" && c !== "E")
+    if (code !== Unicode.Period as number &&
+      (code & ~0x0010_0000) !== Unicode.LargeLetterE as number)
       return ParseDecimalDigits(numText);
 
     // (\.[0-9]+)?
-    if (c === ".") {
+    if (code === Unicode.Period as number) {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
         throw new SyntaxError("Missing digits after decimal point");
 
       c = fragment[current];
-      if (!IsAsciiDigit(c))
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
         throw new SyntaxError("Unterminated fractional number");
       numText += c;
       current++;
@@ -265,7 +266,8 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
           return ParseFloat(numText);
 
         c = fragment[current];
-        if (!IsAsciiDigit(c))
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
           break;
 
         numText += c;
@@ -274,14 +276,15 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     }
 
     // ([eE][\+\-]?[0-9]+)?
-    if (c === "e" || c === "E") {
+    if ((code & ~0b0010_0000) === Unicode.LargeLetterE as number) {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
         throw new SyntaxError("Missing digits after exponent indicator");
 
       c = fragment[current];
-      if (c === "+" || c === "-") {
+      code = StringCharCodeAt(c, 0);
+      if (code === Unicode.Plus as number || code === Unicode.Dash as number) {
         numText += c;
         current++;
 
@@ -290,7 +293,8 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       }
 
       c = fragment[current];
-      if (!IsAsciiDigit(c))
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
         throw new SyntaxError("Exponent part is missing a number");
       numText += c;
       current++;
@@ -300,7 +304,8 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
           break;
 
         c = fragment[current];
-        if (!IsAsciiDigit(c))
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
           break;
 
         numText += c;
@@ -405,7 +410,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         return TokenType.Colon;
     }
 
-    if (code === Unicode.Dash as number || IsDigit(code)) {
+    if (code === Unicode.Dash as number || IsAsciiDigit(code)) {
       tokenValue = yield* jsonNumber();
       return TokenType.Number;
     }
