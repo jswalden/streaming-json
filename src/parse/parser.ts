@@ -322,7 +322,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     if (atEnd() && (yield* atEOF()))
       throw new SyntaxError("End of data looking for colon in object entry");
 
-    if (fragment[current] !== ":")
+    if (StringCharCodeAt(fragment, current) !== Unicode.Colon as number)
       throw new SyntaxError("Expected ':' after property name in object");
 
     current++;
