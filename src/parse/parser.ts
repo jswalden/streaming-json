@@ -6,7 +6,7 @@ import { ParseDecimalDigits, ParseFloat, ParseHexDigits } from "../stdlib/number
 import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from "../stdlib/object.js";
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
-import { Unicode } from "../utils/unicode.js";
+import { IsAsciiDigit as IsDigit, Unicode } from "../utils/unicode.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -364,65 +364,56 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     if (atEnd() && (yield* atEOF()))
       throw new SyntaxError("Unexpected end of data");
 
-    switch (fragment[current]) {
-      case '"':
+    const code = StringCharCodeAt(fragment, current);
+    switch (code) {
+      case Unicode.QuotationMark as number:
         tokenValue = yield* jsonString();
         return TokenType.String;
 
-      case "-":
-      case "0":
-      case "1":
-      case "2":
-      case "3":
-      case "4":
-      case "5":
-      case "6":
-      case "7":
-      case "8":
-      case "9":
-        tokenValue = yield* jsonNumber();
-        return TokenType.Number;
-
-      case "t":
+      case Unicode.SmallLetterT as number:
         yield* consumeKeyword("true");
         tokenValue = true;
         return TokenType.Boolean;
 
-      case "f":
+      case Unicode.SmallLetterF as number:
         yield* consumeKeyword("false");
         tokenValue = false;
         return TokenType.Boolean;
 
-      case "n":
+      case Unicode.SmallLetterN as number:
         yield* consumeKeyword("null");
         tokenValue = null;
         return TokenType.Null;
 
-      case "[":
+      case Unicode.OpenBracket as number:
         current++;
         return TokenType.ArrayOpen;
-      case "]":
+      case Unicode.CloseBracket as number:
         current++;
         return TokenType.ArrayClose;
 
-      case "{":
+      case Unicode.OpenBrace as number:
         current++;
         return TokenType.ObjectOpen;
-      case "}":
+      case Unicode.CloseBrace as number:
         current++;
         return TokenType.ObjectClose;
 
-      case ",":
+      case Unicode.Comma as number:
         current++;
         return TokenType.Comma;
 
-      case ":":
+      case Unicode.Colon as number:
         current++;
         return TokenType.Colon;
-
-      default:
-        throw new SyntaxError("Unexpected character");
     }
+
+    if (code === Unicode.Dash as number || IsDigit(code)) {
+      tokenValue = yield* jsonNumber();
+      return TokenType.Number;
+    }
+
+    throw new SyntaxError("Unexpected character");
   };
 
   type PartialArray = JSONValue[];
