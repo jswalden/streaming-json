@@ -349,10 +349,10 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     if (atEnd() && (yield* atEOF()))
       throw new SyntaxError("End of data when ',' or ']' was expected");
 
-    const c = fragment[current++];
-    if (c === ",")
+    const code = StringCharCodeAt(fragment, current++);
+    if (code === Unicode.Comma as number)
       return false;
-    if (c === "]")
+    if (code === Unicode.CloseBracket as number)
       return true;
 
     throw new SyntaxError("Expected property name or '}'");
