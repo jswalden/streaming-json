@@ -508,7 +508,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         if (atEnd() && (yield* atEOF()))
           throw new SyntaxError("End of data where property name was expected");
 
-        if (fragment[current] !== '"')
+        if (StringCharCodeAt(fragment, current) !== Unicode.QuotationMark as number)
           throw new Error("Expected property name");
 
         objectInfo[2] = yield* jsonString();
