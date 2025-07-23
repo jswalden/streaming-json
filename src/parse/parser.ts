@@ -459,13 +459,13 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               if (atEnd() && (yield* atEOF()))
                 throw new SyntaxError("End of data while reading object contents");
 
-              const c = fragment[current];
-              if (c === "}") {
+              const c = StringCharCodeAt(fragment, current);
+              if (c === Unicode.CloseBrace as number) {
                 current++;
                 break toFinishValue;
               }
 
-              if (c !== '"')
+              if (c !== Unicode.QuotationMark as number)
                 throw new SyntaxError("Expected property name or '}'");
 
               Push(stack, [ParseState.FinishObjectMember, value, yield* jsonString()]);
