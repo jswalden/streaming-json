@@ -1,4 +1,10 @@
-/** @see https://tc39.es/ecma262/#eqn-truncate */
+/**
+ * Remove the fractional component from a finite (non-infinite and non-`NaN`)
+ * number by rounding it towards zero.  The sign on a truncation to +0 or -0 is
+ * preserved.
+ *
+ * @see https://tc39.es/ecma262/#eqn-truncate
+ */
 export function Truncate(n: number): number {
   if (!Number.isFinite(n))
     throw new RangeError("Truncate only handles finite numbers");

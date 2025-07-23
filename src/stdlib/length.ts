@@ -2,13 +2,14 @@ import { Truncate } from "./math.js";
 import { ToNumber } from "./number.js";
 
 /**
- * Convert a value into a numeric length.
+ * Convert a value to a numeric length.
  *
  * @param argument
  *   The value to convert.
  * @returns
  *   A number that meets the typical ECMAScript length characteristics, i.e.
- *   being a nonnegative integer that's not
+ *   being a nonnegative integer that's not so large it exceeds the Number
+ *   type remaining integrally precise.
  * @see https://tc39.es/ecma262/#sec-tolength
  */
 function ToLength(argument: unknown): number {

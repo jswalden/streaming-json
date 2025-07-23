@@ -83,8 +83,8 @@ function toPropertyList(array: ReplacerPropertyList): PropertyList {
  * overall graph created during stringification.  See `JSON.stringify`
  * documentation for precise details.
  *
- * Note that when the pertinent object is an array, keys will be *strings* and
- * not numerical indexes.
+ * Note that when the pertinent object is an array, keys are *strings* and not
+ * numerical indexes.
  */
 export type ReplacerFunction = ((this: object, key: string, value: unknown) => unknown);
 
@@ -495,13 +495,13 @@ class StringifyGenerator {
 
 /**
  * Create an iterator over successive fragments of the JSON stringification of a
- * value, as if by `JSON.stringify(value, replacer, space)`.  Fragments are
- * generated until the entire stringification has been returned.  Where fragment
+ * value, as if by `JSON.stringify(value, replacer, space)`.  Fragments will be
+ * iterated until the entire stringification has been returned.  Where fragment
  * boundaries occur is explicitly not defined: do not attempt to infer or rely
  * upon boundary locations.
  *
- * If the incremental stringification operations performed during a `next()`
- * throw an exception, that exception will be thrown by `next()`.
+ * If the incremental stringification operations performed to iterate the next
+ * fragment throw an exception, that exception will propagate to the caller.
  *
  * ```js
  * import { stringify } from "@jswalden/streaming-json";
@@ -525,32 +525,33 @@ class StringifyGenerator {
  * ```
  *
  * If `value` itself is not stringifiable (e.g. it's `undefined`, a symbol, or
- * is callable), *the generator will yield no fragments*.  (Note that in this
- * case `JSON.stringify` returns `undefined`, not a string.)
+ * is callable), *iteration will not produce any fragments*.  (Note that in this
+ * case `JSON.stringify` would return `undefined`, not a string.)
  *
  * ```js
  * import { stringify } from "@jswalden/streaming-json";
  *
  * const cantStringify = undefined;
- * assert(JSON.stringify(cantStringify, undefined, 2) === undefined);
- * assert([...stringify(cantStringify, undefined, 2)].length === 0);
+ * assert(JSON.stringify(cantStringify, null, 2) === undefined);
+ * assert([...stringify(cantStringify, null, 2)].length === 0);
  * ```
  *
- * If you use this function on insufficiently-restricted values, you must verify
- * that the generated fragments constitute a non-empty string.
+ * Therefore if you use this function on insufficiently-restricted values
+ * expecting it to produce a concatenated stringification, you must be sure to
+ * verify that it actually iterates a fragment.
  *
  * @param value
  *   The value to stringify.
  * @param replacer
  *   A property list identifying the properties to include in stringification,
- *   or a replacer function to call that can modify or eliminate values encoded
- *   in the ultimate stringification -- or `null`/`undefined` if no replacement
- *   or limitation of properties is needed.
+ *   a replacer function to call that can modify or eliminate values encoded in
+ *   the ultimate stringification, or `null`/`undefined` if no replacement or
+ *   limitation of properties should occur.
  * @param space
  *   If a number, contents will be pretty-printed using that many U+0020 SPACE
  *   characters as indentation.  Otherwise up to the first ten characters of a
  *   supplied string will be used as indentation.  If the requested indentation
- *   is an empty string, no pretty-printing will occur.
+ *   is an empty string, no pretty-printing occurs.
  */
 export function stringify(
   value: unknown,

@@ -1,4 +1,8 @@
-/** @see https://tc39.es/ecma262/#sec-tostring */
+/**
+ * Convert a value to string, by ECMAScript `ToString` semantics.
+ *
+ * @see https://tc39.es/ecma262/#sec-tostring
+ */
 export const ToString = String;
 
 /** Return a string consisting of all of the supplied character codes. */
