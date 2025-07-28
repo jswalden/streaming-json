@@ -101,12 +101,12 @@ const enum State {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type FinishArrayElement = {
   readonly state: State.FinishArrayElement;
-  readonly indent: string;
-  readonly separator: string;
-  readonly end: string;
   readonly object: readonly unknown[];
   index: number;
   readonly length: number;
+  readonly indent: string;
+  readonly separator: string;
+  readonly end: string;
 };
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
@@ -120,13 +120,13 @@ type FindUnfilteredObjectMember = {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type AfterUnfilteredObjectMember = {
   readonly state: State.AfterUnfilteredObjectMember;
+  readonly object: Record<string, unknown>;
+  index: number;
+  readonly props: readonly string[];
   readonly indent: string;
   readonly colon: string;
   readonly comma: string;
   readonly closing: string;
-  readonly object: Record<string, unknown>;
-  index: number;
-  readonly props: readonly string[];
 };
 
 type SerializeEntry =
@@ -185,12 +185,12 @@ class StringifyGenerator {
 
     Push(this.stack, {
       state: State.FinishArrayElement,
-      indent: stepBack,
-      separator,
-      end,
       object: array,
       index: 0,
       length,
+      indent: stepBack,
+      separator,
+      end,
     });
 
     return begin;
@@ -352,12 +352,12 @@ class StringifyGenerator {
           this.stack[this.stack.length - 1] = {
             state: State.AfterUnfilteredObjectMember,
             object,
+            index: index + 1,
+            props: keys,
+            indent: stepBack,
             colon,
             comma,
             closing,
-            indent: stepBack,
-            index: index + 1,
-            props: keys,
           } satisfies AfterUnfilteredObjectMember;
 
           sval = v;
