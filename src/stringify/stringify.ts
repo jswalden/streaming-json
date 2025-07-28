@@ -134,6 +134,10 @@ type SerializeEntry =
   FindUnfilteredObjectMember |
   AfterUnfilteredObjectMember;
 
+function BUG(msg: string): never {
+  throw new Error(`LOGIC ERROR: ${msg}`);
+}
+
 class StringifyGenerator {
   private readonly stack: SerializeEntry[] = [];
 
@@ -245,7 +249,7 @@ class StringifyGenerator {
 
           if (index >= length) {
             if (index > length)
-              throw new TypeError("INTERNAL BUG");
+              BUG("iterated past end of array elements");
 
             this.exitObject();
             this.indent = arrayState.indent;
@@ -325,7 +329,7 @@ class StringifyGenerator {
           foundUnfilteredProperty: do {
             if (index >= keys.length) {
               if (index > keys.length)
-                throw new TypeError("INTERNAL BUG");
+                BUG("iterated past keys end looking for first stringifiable");
 
               this.exitObject();
               yield "{}";
@@ -376,7 +380,7 @@ class StringifyGenerator {
           foundUnfilteredProperty: do {
             if (index >= keys.length) {
               if (index > keys.length)
-                throw new TypeError("INTERNAL BUG");
+                BUG("iterated past keys end looking for subsequent stringifiable");
 
               this.exitObject();
               this.indent = objectState.indent;
