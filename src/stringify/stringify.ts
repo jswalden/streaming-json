@@ -1,16 +1,16 @@
 import type { Equal, Expect } from "type-testing";
 import { ArrayFind, IsArray, Pop, Push } from "../stdlib/array.js";
-import { JSONStringify } from "../stdlib/json-stringify.js";
-import { LengthOfArrayLike } from "../stdlib/length.js";
-import { EnumerableOwnPropertyKeys } from "../stdlib/object.js";
-import { StringRepeat, StringSlice, ToString } from "../stdlib/string.js";
-import { SetHas, SetAdd } from "../stdlib/set.js";
-import { Min, Truncate } from "../stdlib/math.js";
-import { ReflectApply } from "../stdlib/reflect.js";
-import { ToNumber } from "../stdlib/number.js";
 import { ExtractBooleanData } from "../stdlib/boolean.js";
 import { ExtractBigIntData } from "../stdlib/bigint.js";
 import { ThrowError, ThrowTypeError } from "../stdlib/error.js";
+import { JSONStringify } from "../stdlib/json-stringify.js";
+import { LengthOfArrayLike } from "../stdlib/length.js";
+import { Min, Truncate } from "../stdlib/math.js";
+import { ToNumber } from "../stdlib/number.js";
+import { EnumerableOwnPropertyKeys } from "../stdlib/object.js";
+import { ReflectApply } from "../stdlib/reflect.js";
+import { SetHas, SetAdd } from "../stdlib/set.js";
+import { StringRepeat, StringSlice, ToString } from "../stdlib/string.js";
 
 // The algorithm heres is patterned upon the `JSON.stringify`
 // [spec algorithm](https://tc39.es/ecma262/#sec-json.stringify).  However, the

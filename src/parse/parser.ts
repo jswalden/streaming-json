@@ -1,5 +1,6 @@
 import type { Equal, Expect } from "type-testing";
 import { IsArray, Pop, Push } from "../stdlib/array.js";
+import { ThrowError, ThrowSyntaxError } from "../stdlib/error.js";
 import { LengthOfArrayLike } from "../stdlib/length.js";
 import { Min } from "../stdlib/math.js";
 import { ParseDecimalDigits, ParseFloat } from "../stdlib/number.js";
@@ -7,7 +8,6 @@ import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from ".
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
 import { HexDigitToNumber, IsAsciiDigit, Unicode } from "../utils/unicode.js";
-import { ThrowError, ThrowSyntaxError } from "../stdlib/error.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
