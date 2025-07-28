@@ -7,6 +7,7 @@ import { CreateDataProperty, DeleteProperty, EnumerableOwnPropertyKeys } from ".
 import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
 import { HexDigitToNumber, IsAsciiDigit, Unicode } from "../utils/unicode.js";
+import { ThrowError, ThrowSyntaxError } from "../stdlib/error.js";
 
 interface JSONObject {
   [key: string]: JSONValue | undefined;
@@ -44,7 +45,7 @@ const enum ParseState {
 };
 
 function BUG(msg: string): never {
-  throw new Error(`LOGIC ERROR: ${msg}`);
+  ThrowError(`BUG: ${msg}`);
 }
 
 /**
@@ -114,11 +115,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     let i = 0;
     while (i < keyword.length) {
       if (atEnd() && (yield* atEOF()))
-        throw new SyntaxError(`End of data in middle of '${keyword}' keyword`);
+        ThrowSyntaxError(`End of data in middle of '${keyword}' keyword`);
 
       const amount = Min(keyword.length - i, end - current);
       if (StringSlice(keyword, i, i + amount) !== StringSlice(fragment, current, current + amount))
-        throw new SyntaxError(`Malformed '${keyword}' keyword`);
+        ThrowSyntaxError(`Malformed '${keyword}' keyword`);
 
       current += amount;
       i += amount;
@@ -133,7 +134,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     let value = "";
     do {
       if (atEnd() && (yield* atEOF()))
-        throw new SyntaxError("Unterminated string literal");
+        ThrowSyntaxError("Unterminated string literal");
 
       let c = fragment[current++];
       let code = StringCharCodeAt(c, 0);
@@ -141,11 +142,11 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         return value;
 
       if (code < (Unicode.SP as number))
-        throw new SyntaxError("Bad control character in string literal");
+        ThrowSyntaxError("Bad control character in string literal");
 
       if (code === Unicode.Backslash as number) {
         if (atEnd() && (yield* atEOF()))
-          throw new SyntaxError("Incomplete escape sequence");
+          ThrowSyntaxError("Incomplete escape sequence");
 
         c = fragment[current++];
         code = StringCharCodeAt(c, 0);
@@ -174,13 +175,13 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
             let digits = 0;
             do {
               if (atEnd() && (yield* atEOF()))
-                throw new SyntaxError("Too-short Unicode escape");
+                ThrowSyntaxError("Too-short Unicode escape");
 
               const amount = Min(4 - digits, end - current);
               for (let i = 0; i < amount; i++) {
                 const n = HexDigitToNumber(fragment, current + i);
                 if (n === null)
-                  throw new SyntaxError(`Bad Unicode escape digit '${fragment[current + i]}'`);
+                  ThrowSyntaxError(`Bad Unicode escape digit '${fragment[current + i]}'`);
                 code = (code << 4) | n;
               }
               digits += amount;
@@ -190,7 +191,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
             break;
           }
           default:
-            throw new SyntaxError(`Bad escaped character '${c}'`);
+            ThrowSyntaxError(`Bad escaped character '${c}'`);
         }
       }
 
@@ -215,12 +216,12 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
-        throw new SyntaxError("Missing number after '-'");
+        ThrowSyntaxError("Missing number after '-'");
 
       c = fragment[current];
       code = StringCharCodeAt(c, 0);
       if (!IsAsciiDigit(code))
-        throw new SyntaxError("Unexpected nondigit");
+        ThrowSyntaxError("Unexpected nondigit");
     }
 
     // 0|[1-9][0-9]+
@@ -252,12 +253,12 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
-        throw new SyntaxError("Missing digits after decimal point");
+        ThrowSyntaxError("Missing digits after decimal point");
 
       c = fragment[current];
       code = StringCharCodeAt(c, 0);
       if (!IsAsciiDigit(code))
-        throw new SyntaxError("Unterminated fractional number");
+        ThrowSyntaxError("Unterminated fractional number");
       numText += c;
       current++;
 
@@ -280,7 +281,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       numText += c;
       current++;
       if (atEnd() && (yield* atEOF()))
-        throw new SyntaxError("Missing digits after exponent indicator");
+        ThrowSyntaxError("Missing digits after exponent indicator");
 
       c = fragment[current];
       code = StringCharCodeAt(c, 0);
@@ -289,13 +290,13 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         current++;
 
         if (atEnd() && (yield* atEOF()))
-          throw new SyntaxError("Missing digits after exponent sign");
+          ThrowSyntaxError("Missing digits after exponent sign");
       }
 
       c = fragment[current];
       code = StringCharCodeAt(c, 0);
       if (!IsAsciiDigit(code))
-        throw new SyntaxError("Exponent part is missing a number");
+        ThrowSyntaxError("Exponent part is missing a number");
       numText += c;
       current++;
 
@@ -322,10 +323,10 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
-      throw new SyntaxError("End of data looking for colon in object entry");
+      ThrowSyntaxError("End of data looking for colon in object entry");
 
     if (StringCharCodeAt(fragment, current) !== Unicode.Colon as number)
-      throw new SyntaxError("Expected ':' after property name in object");
+      ThrowSyntaxError("Expected ':' after property name in object");
 
     current++;
   };
@@ -334,7 +335,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
-      throw new SyntaxError("End of data after property value in object");
+      ThrowSyntaxError("End of data after property value in object");
 
     const code = StringCharCodeAt(fragment, current++);
     if (code === Unicode.Comma as number)
@@ -342,14 +343,14 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     if (code === Unicode.CloseBrace as number)
       return true;
 
-    throw new SyntaxError("Expected ',' or '}' after property value in object");
+    ThrowSyntaxError("Expected ',' or '}' after property value in object");
   };
 
   const advanceArrayEnds = function* (): Generator<void, boolean, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
-      throw new SyntaxError("End of data when ',' or ']' was expected");
+      ThrowSyntaxError("End of data when ',' or ']' was expected");
 
     const code = StringCharCodeAt(fragment, current++);
     if (code === Unicode.Comma as number)
@@ -357,14 +358,14 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
     if (code === Unicode.CloseBracket as number)
       return true;
 
-    throw new SyntaxError("Expected property name or '}'");
+    ThrowSyntaxError("Expected property name or '}'");
   };
 
   const advance = function* (): Generator<void, TokenType, string> {
     yield* consumeWhitespace();
 
     if (atEnd() && (yield* atEOF()))
-      throw new SyntaxError("Unexpected end of data");
+      ThrowSyntaxError("Unexpected end of data");
 
     const code = StringCharCodeAt(fragment, current);
     switch (code) {
@@ -415,7 +416,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
       return TokenType.Number;
     }
 
-    throw new SyntaxError("Unexpected character");
+    ThrowSyntaxError("Unexpected character");
   };
 
   type PartialArray = JSONValue[];
@@ -459,7 +460,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               yield* consumeWhitespace();
 
               if (atEnd() && (yield* atEOF()))
-                throw new SyntaxError("End of data while reading object contents");
+                ThrowSyntaxError("End of data while reading object contents");
 
               const c = StringCharCodeAt(fragment, current);
               if (c === Unicode.CloseBrace as number) {
@@ -468,7 +469,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
               }
 
               if (c !== Unicode.QuotationMark as number)
-                throw new SyntaxError("Expected property name or '}'");
+                ThrowSyntaxError("Expected property name or '}'");
 
               Push(stack, [ParseState.FinishObjectMember, value, yield* jsonString()]);
 
@@ -487,7 +488,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
             case TokenType.ObjectClose:
             case TokenType.Colon:
             case TokenType.Comma:
-              throw new SyntaxError(`Encountered token with internal value ${token} in value context`);
+              ThrowSyntaxError(`Encountered token with internal value ${token} in value context`);
 
             default: {
               type assert_AllCasesHandled = Expect<Equal<typeof token, never>>;
@@ -508,10 +509,10 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
         yield* consumeWhitespace();
 
         if (atEnd() && (yield* atEOF()))
-          throw new SyntaxError("End of data where property name was expected");
+          ThrowSyntaxError("End of data where property name was expected");
 
         if (StringCharCodeAt(fragment, current) !== Unicode.QuotationMark as number)
-          throw new Error("Expected property name");
+          ThrowError("Expected property name");
 
         objectInfo[2] = yield* jsonString();
 
@@ -543,7 +544,7 @@ function* ParseJSON(): Generator<void, JSONValue, string> {
   yield* consumeWhitespace();
 
   if (!atEnd())
-    throw new SyntaxError("Unexpected non-whitespace character after JSON data");
+    ThrowSyntaxError("Unexpected non-whitespace character after JSON data");
 
   return value;
 }
@@ -582,7 +583,7 @@ export class StreamingJSONParser {
     // Advance past initial implicit yield to first actual yield.
     const done = this.parser.next().done;
     if (typeof done === "boolean" && done)
-      throw new Error("BUG: PARSER PREMATURELY FINISHED");
+      BUG("parsing finished before any fragments added");
   }
 
   /**
@@ -598,14 +599,14 @@ export class StreamingJSONParser {
    */
   add(fragment: string): void {
     if (this.complete)
-      throw new Error("Can't add fragment: parsing already completed");
+      ThrowError("Can't add fragment: parsing already completed");
 
     // Filter out magical end-of-text fragments.
     if (fragment.length > 0) {
       try {
         const done = this.parser.next(fragment).done;
         if (typeof done === "boolean" && done)
-          throw new Error("BUG add(nonempty fragment) never completes parsing");
+          BUG("add(nonempty fragment) should never complete parsing");
       } catch (e) {
         this.complete = true;
         throw e;
@@ -659,7 +660,7 @@ export class StreamingJSONParser {
   finish<T>(reviver: Reviver<T>): T;
   finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
     if (this.complete) {
-      throw new Error(
+      ThrowError(
         "Can't call finish: it was either already called or a syntax error " +
         "was encountered",
       );
@@ -672,7 +673,7 @@ export class StreamingJSONParser {
 
       const done = result.done;
       if (typeof done !== "boolean" || !done)
-        throw new SyntaxError("Complete text is not valid JSON");
+        ThrowSyntaxError("Complete text is not valid JSON");
 
       unfiltered = result.value;
     } finally {

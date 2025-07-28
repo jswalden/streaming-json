@@ -10,6 +10,7 @@ import { ReflectApply } from "../stdlib/reflect.js";
 import { ToNumber } from "../stdlib/number.js";
 import { ExtractBooleanData } from "../stdlib/boolean.js";
 import { ExtractBigIntData } from "../stdlib/bigint.js";
+import { ThrowError, ThrowTypeError } from "../stdlib/error.js";
 
 // The algorithm heres is patterned upon the `JSON.stringify`
 // [spec algorithm](https://tc39.es/ecma262/#sec-json.stringify).  However, the
@@ -135,7 +136,7 @@ type SerializeEntry =
   AfterUnfilteredObjectMember;
 
 function BUG(msg: string): never {
-  throw new Error(`LOGIC ERROR: ${msg}`);
+  ThrowError(`LOGIC ERROR: ${msg}`);
 }
 
 class StringifyGenerator {
@@ -173,7 +174,7 @@ class StringifyGenerator {
     // (Mozilla's `JSON.stringify` is quadratic this way, so there's precedent
     // for ignoring the concern now.)
     if (ArrayFind(this.stack, (entry: SerializeEntry) => entry.object === obj))
-      throw new TypeError("Attempting to stringify a cyclic object");
+      ThrowTypeError("Attempting to stringify a cyclic object");
   }
 
   /**
@@ -491,7 +492,7 @@ class StringifyGenerator {
       case "function":
         return undefined;
       case "bigint":
-        throw new TypeError("Can't serialize bigint");
+        ThrowTypeError("Can't serialize bigint");
     }
   }
 };

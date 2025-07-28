@@ -2,9 +2,7 @@
 
 Files in this directory define helper functions that abstract away standard
 library function use, in order that such uses be easily identified as vectors
-for user-defined code to muck with package functionality.  (We don't bother to
-abstract away use of the various `Error` constructors as they're trivially found
-by searching.)
+for user-defined code to muck with package functionality.
 
 Ideally this package wouldn't invoke user-modifiable standard library
 functionality, for greatest faithfulness to standard library semantics.  It

@@ -1,3 +1,5 @@
+import { ThrowRangeError } from "./error.js";
+
 /**
  * Remove the fractional component from a finite (non-infinite and non-`NaN`)
  * number by rounding it towards zero.  The sign on a truncation to +0 or -0 is
@@ -7,7 +9,7 @@
  */
 export function Truncate(n: number): number {
   if (!Number.isFinite(n))
-    throw new RangeError("Truncate only handles finite numbers");
+    ThrowRangeError("Truncate only handles finite numbers");
   return Math.trunc(n);
 }
 
