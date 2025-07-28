@@ -451,8 +451,7 @@ class StringifyGenerator {
           break;
       case "function":
       case "bigint":
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- required by spec
-        const toJSON = (value as any).toJSON as unknown;
+        const toJSON = (value as { toJSON: unknown }).toJSON;
         if (typeof toJSON === "function")
           value = ReflectApply(toJSON, value, [key]);
         break;
