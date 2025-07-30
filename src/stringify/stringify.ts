@@ -163,7 +163,7 @@ class StringifyGenerator {
   }
 
   /** Yield constrained-length fragments of an unconstrained-length string. */
-  private* lengthyFragment(frag: string): Generator<string, void, void> {
+  private *lengthyFragment(frag: string): Generator<string, void, void> {
     for (let i = 0; i < frag.length; i += Quantum)
       yield StringSlice(frag, i, i + Quantum);
   }
@@ -222,7 +222,7 @@ class StringifyGenerator {
     Pop(this.stack);
   }
 
-  * run(value: unknown): Generator<string, void, void> {
+  *run(value: unknown): Generator<string, void, void> {
     let sval: StringifiableValue;
     {
       const v: StringifiableValue | undefined = this.preprocessValue(

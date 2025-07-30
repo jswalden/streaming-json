@@ -80,7 +80,7 @@ export class StreamingJSONParser {
    * fragment is received, return `true`.  Otherwise set it as the current
    * fragment and return `false` so that it can be parsed.
    */
-  private* atEOF(): Generator<void, boolean, string> {
+  private *atEOF(): Generator<void, boolean, string> {
     if (this.eof)
       return true;
 
@@ -107,7 +107,7 @@ export class StreamingJSONParser {
    * Consume whitespace until the current character isn't whitespace (or all
    * JSON text has been processed).
    */
-  private* consumeWhitespace(): Generator<void, void, string> {
+  private *consumeWhitespace(): Generator<void, void, string> {
     do {
       while (!this.atEnd()) {
         const c = StringCharCodeAt(this.fragment, this.current);
@@ -125,7 +125,7 @@ export class StreamingJSONParser {
   }
 
   /** Consume the given keyword starting from the current character. */
-  private* consumeKeyword(keyword: string): Generator<void, void, string> {
+  private *consumeKeyword(keyword: string): Generator<void, void, string> {
     let i = 0;
     while (i < keyword.length) {
       if (this.atEnd() && (yield* this.atEOF()))
@@ -142,7 +142,7 @@ export class StreamingJSONParser {
   }
 
   /** Consume and return a JSON string, starting at its leading `"`. */
-  private* jsonString(): Generator<void, string, string> {
+  private *jsonString(): Generator<void, string, string> {
     if (this.atEnd() || StringCharCodeAt(this.fragment, this.current) !== Unicode.QuotationMark as number)
       BUG("jsonString called while not at start of string");
     this.current++;
@@ -216,7 +216,7 @@ export class StreamingJSONParser {
   }
 
   /** Consume and return a JSON number, starting at its leading digit or `-`. */
-  private* jsonNumber(): Generator<void, number, string> {
+  private *jsonNumber(): Generator<void, number, string> {
     if (this.atEnd())
       BUG("jsonNumber called while at end of fragment");
 
@@ -338,7 +338,7 @@ export class StreamingJSONParser {
    * Consume the (optional whitespace and) colon after a property name in an
    * object literal.
    */
-  private* advanceColon(): Generator<void, void, string> {
+  private *advanceColon(): Generator<void, void, string> {
     yield* this.consumeWhitespace();
 
     if (this.atEnd() && (yield* this.atEOF()))
@@ -356,7 +356,7 @@ export class StreamingJSONParser {
    *
    * @returns `true` iff `}` was consumed and the object has ended
    */
-  private* advanceObjectEnds(): Generator<void, boolean, string> {
+  private *advanceObjectEnds(): Generator<void, boolean, string> {
     yield* this.consumeWhitespace();
 
     if (this.atEnd() && (yield* this.atEOF()))
@@ -377,7 +377,7 @@ export class StreamingJSONParser {
    *
    * @returns `true` iff `]` was consumed and the array has ended
    */
-  private* advanceArrayEnds(): Generator<void, boolean, string> {
+  private *advanceArrayEnds(): Generator<void, boolean, string> {
     yield* this.consumeWhitespace();
 
     if (this.atEnd() && (yield* this.atEOF()))
@@ -396,7 +396,7 @@ export class StreamingJSONParser {
   private tokenValue: boolean | string | number | null = null;
 
   /** Advance and consume a token, in context where a JSON value is expected. */
-  private* advance(): Generator<void, TokenType, string> {
+  private *advance(): Generator<void, TokenType, string> {
     yield* this.consumeWhitespace();
 
     if (this.atEnd() && (yield* this.atEOF()))
@@ -470,7 +470,7 @@ export class StreamingJSONParser {
    * If upon `.next("")` the concatenated fragments form valid JSON text, that
    * call returns `{ done: true, value: <result of parsing the JSON text> }`.
    */
-  private* parseJSON(): Generator<void, JSONValue, string> {
+  private *parseJSON(): Generator<void, JSONValue, string> {
     type PartialArray = JSONValue[];
     type ParsingArray = [ParseState.FinishArrayElement, PartialArray];
     type PartialObject = Partial<JSONObject>;

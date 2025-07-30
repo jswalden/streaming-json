@@ -63,6 +63,7 @@ export default defineConfig([
       "@stylistic/operator-linebreak": ["error", "after", { overrides: { "?": "before", ":": "before" } }],
       "@stylistic/quotes": ["error", "double", { avoidEscape: true }],
       "@stylistic/nonblock-statement-body-position": ["error", "below"],
+      "@stylistic/generator-star-spacing": ["error", "before"],
       "object-shorthand": "error",
       "no-useless-rename": "error",
       "n/file-extension-in-import": ["error", "always"],
