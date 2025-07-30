@@ -36,517 +36,8 @@ const enum TokenType {
   Colon,
 };
 
-type TokenValue = boolean | string | number | null;
-
-const enum ParseState {
-  FinishArrayElement,
-  FinishObjectMember,
-  Value,
-};
-
 function BUG(msg: string): never {
   ThrowError(`BUG: ${msg}`);
-}
-
-/**
- * Create a generator that incrementally parses as JSON a series of nonempty
- * fragments passed to the generator as arguments to its `next()` property.
- *
- * As JSON can be surrounded by arbitrary amounts of whitespace, the overall
- * text can be infinitely long.  To indicate the end of the text intended to be
- * parsed, call `next("")` passing an empty fragment.
- *
- * If the combined fragments aren't valid JSON, the `next()` call supplying the
- * fragment that makes the combination invalid will throw a `SyntaxError`.
- * Fragments will continue to be parsed until either an error is detected or
- * until the parsed prefix is invalid JSON.
- *
- * @throws
- *   A `SyntaxError` at the earliest instant that it's known that the combined
- *   fragments don't constitute valid JSON.
- * @returns
- *   Upon a call of `next("")`, assuming all fragments do constitute a valid
- *   JSON text, the corresponding JSON value.
- */
-function* ParseJSON(): Generator<void, JSONValue, string> {
-  let fragment = "";
-  let current = 0;
-  let end = 0;
-  let eof = false;
-  const atEOF = function* (): Generator<void, boolean, string> {
-    if (eof)
-      return true;
-
-    const data = yield;
-    if (data.length === 0) {
-      eof = true;
-      return true;
-    }
-
-    fragment = data;
-    current = 0;
-    end = fragment.length;
-    return false;
-  };
-  const atEnd = (): boolean => {
-    if (current > end)
-      BUG("incremented current past end");
-    return current === end;
-  };
-
-  const consumeWhitespace = function* (): Generator<void, void, string> {
-    do {
-      while (!atEnd()) {
-        const c = StringCharCodeAt(fragment, current);
-        if (!(c === Unicode.SP as number ||
-          c === Unicode.LF as number ||
-          c === Unicode.CR as number ||
-          c === Unicode.HT as number))
-          return;
-        current++;
-      }
-
-      if (yield* atEOF())
-        return;
-    } while (true);
-  };
-
-  const consumeKeyword = function* (keyword: string): Generator<void, void, string> {
-    let i = 0;
-    while (i < keyword.length) {
-      if (atEnd() && (yield* atEOF()))
-        ThrowSyntaxError(`End of data in middle of '${keyword}' keyword`);
-
-      const amount = Min(keyword.length - i, end - current);
-      if (StringSlice(keyword, i, i + amount) !== StringSlice(fragment, current, current + amount))
-        ThrowSyntaxError(`Malformed '${keyword}' keyword`);
-
-      current += amount;
-      i += amount;
-    }
-  };
-
-  const jsonString = function* (): Generator<void, string, string> {
-    if (atEnd() || StringCharCodeAt(fragment, current) !== Unicode.QuotationMark as number)
-      BUG("jsonString called while not at start of string");
-    current++;
-
-    let value = "";
-    do {
-      if (atEnd() && (yield* atEOF()))
-        ThrowSyntaxError("Unterminated string literal");
-
-      let c = fragment[current++];
-      let code = StringCharCodeAt(c, 0);
-      if (code === Unicode.QuotationMark as number)
-        return value;
-
-      if (code < (Unicode.SP as number))
-        ThrowSyntaxError("Bad control character in string literal");
-
-      if (code === Unicode.Backslash as number) {
-        if (atEnd() && (yield* atEOF()))
-          ThrowSyntaxError("Incomplete escape sequence");
-
-        c = fragment[current++];
-        code = StringCharCodeAt(c, 0);
-        switch (code) {
-          case Unicode.QuotationMark as number:
-          case Unicode.ForwardSlash as number:
-          case Unicode.Backslash as number:
-            break;
-          case Unicode.SmallLetterB as number:
-            c = "\b";
-            break;
-          case Unicode.SmallLetterF as number:
-            c = "\f";
-            break;
-          case Unicode.SmallLetterN as number:
-            c = "\n";
-            break;
-          case Unicode.SmallLetterR as number:
-            c = "\r";
-            break;
-          case Unicode.SmallLetterT as number:
-            c = "\t";
-            break;
-          case Unicode.SmallLetterU as number: {
-            code = 0;
-            let digits = 0;
-            do {
-              if (atEnd() && (yield* atEOF()))
-                ThrowSyntaxError("Too-short Unicode escape");
-
-              const amount = Min(4 - digits, end - current);
-              for (let i = 0; i < amount; i++) {
-                const n = HexDigitToNumber(fragment, current + i);
-                if (n === null)
-                  ThrowSyntaxError(`Bad Unicode escape digit '${fragment[current + i]}'`);
-                code = (code << 4) | n;
-              }
-              digits += amount;
-              current += amount;
-            } while (digits < 4);
-            c = StringFromCharCode(code);
-            break;
-          }
-          default:
-            ThrowSyntaxError(`Bad escaped character '${c}'`);
-        }
-      }
-
-      value += c;
-    } while (true);
-  };
-
-  const jsonNumber = function* (): Generator<void, number, string> {
-    if (atEnd())
-      BUG("jsonNumber called while at end of fragment");
-
-    // ^-?(0|[1-9][0-9]+)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?$
-    let c = fragment[current];
-    let code = StringCharCodeAt(c, 0);
-    if (!(code === Unicode.Dash as number || IsAsciiDigit(code)))
-      BUG("jsonNumber called while not at start of number");
-
-    let numText = "";
-
-    // -?
-    if (code === Unicode.Dash as number) {
-      numText += c;
-      current++;
-      if (atEnd() && (yield* atEOF()))
-        ThrowSyntaxError("Missing number after '-'");
-
-      c = fragment[current];
-      code = StringCharCodeAt(c, 0);
-      if (!IsAsciiDigit(code))
-        ThrowSyntaxError("Unexpected nondigit");
-    }
-
-    // 0|[1-9][0-9]+
-    numText += c;
-    current++;
-    if (code !== Unicode.Zero as number) {
-      do {
-        if (atEnd()) {
-          if (yield* atEOF())
-            return ParseDecimalDigits(numText);
-        }
-
-        c = fragment[current];
-        code = StringCharCodeAt(c, 0);
-        if (!IsAsciiDigit(code))
-          break;
-
-        numText += c;
-        current++;
-      } while (true);
-    }
-
-    if (code !== Unicode.Period as number &&
-      (code & ~0x0010_0000) !== Unicode.LargeLetterE as number)
-      return ParseDecimalDigits(numText);
-
-    // (\.[0-9]+)?
-    if (code === Unicode.Period as number) {
-      numText += c;
-      current++;
-      if (atEnd() && (yield* atEOF()))
-        ThrowSyntaxError("Missing digits after decimal point");
-
-      c = fragment[current];
-      code = StringCharCodeAt(c, 0);
-      if (!IsAsciiDigit(code))
-        ThrowSyntaxError("Unterminated fractional number");
-      numText += c;
-      current++;
-
-      do {
-        if (atEnd() && (yield* atEOF()))
-          return ParseFloat(numText);
-
-        c = fragment[current];
-        code = StringCharCodeAt(c, 0);
-        if (!IsAsciiDigit(code))
-          break;
-
-        numText += c;
-        current++;
-      } while (true);
-    }
-
-    // ([eE][\+\-]?[0-9]+)?
-    if ((code & ~0b0010_0000) === Unicode.LargeLetterE as number) {
-      numText += c;
-      current++;
-      if (atEnd() && (yield* atEOF()))
-        ThrowSyntaxError("Missing digits after exponent indicator");
-
-      c = fragment[current];
-      code = StringCharCodeAt(c, 0);
-      if (code === Unicode.Plus as number || code === Unicode.Dash as number) {
-        numText += c;
-        current++;
-
-        if (atEnd() && (yield* atEOF()))
-          ThrowSyntaxError("Missing digits after exponent sign");
-      }
-
-      c = fragment[current];
-      code = StringCharCodeAt(c, 0);
-      if (!IsAsciiDigit(code))
-        ThrowSyntaxError("Exponent part is missing a number");
-      numText += c;
-      current++;
-
-      do {
-        if (atEnd() && (yield* atEOF()))
-          break;
-
-        c = fragment[current];
-        code = StringCharCodeAt(c, 0);
-        if (!IsAsciiDigit(code))
-          break;
-
-        numText += c;
-        current++;
-      } while (true);
-    }
-
-    return ParseFloat(numText);
-  };
-
-  let tokenValue = null as TokenValue;
-
-  const advanceColon = function* (): Generator<void, void, string> {
-    yield* consumeWhitespace();
-
-    if (atEnd() && (yield* atEOF()))
-      ThrowSyntaxError("End of data looking for colon in object entry");
-
-    if (StringCharCodeAt(fragment, current) !== Unicode.Colon as number)
-      ThrowSyntaxError("Expected ':' after property name in object");
-
-    current++;
-  };
-
-  const advanceObjectEnds = function* (): Generator<void, boolean, string> {
-    yield* consumeWhitespace();
-
-    if (atEnd() && (yield* atEOF()))
-      ThrowSyntaxError("End of data after property value in object");
-
-    const code = StringCharCodeAt(fragment, current++);
-    if (code === Unicode.Comma as number)
-      return false;
-    if (code === Unicode.CloseBrace as number)
-      return true;
-
-    ThrowSyntaxError("Expected ',' or '}' after property value in object");
-  };
-
-  const advanceArrayEnds = function* (): Generator<void, boolean, string> {
-    yield* consumeWhitespace();
-
-    if (atEnd() && (yield* atEOF()))
-      ThrowSyntaxError("End of data when ',' or ']' was expected");
-
-    const code = StringCharCodeAt(fragment, current++);
-    if (code === Unicode.Comma as number)
-      return false;
-    if (code === Unicode.CloseBracket as number)
-      return true;
-
-    ThrowSyntaxError("Expected property name or '}'");
-  };
-
-  const advance = function* (): Generator<void, TokenType, string> {
-    yield* consumeWhitespace();
-
-    if (atEnd() && (yield* atEOF()))
-      ThrowSyntaxError("Unexpected end of data");
-
-    const code = StringCharCodeAt(fragment, current);
-    switch (code) {
-      case Unicode.QuotationMark as number:
-        tokenValue = yield* jsonString();
-        return TokenType.String;
-
-      case Unicode.SmallLetterT as number:
-        yield* consumeKeyword("true");
-        tokenValue = true;
-        return TokenType.Boolean;
-
-      case Unicode.SmallLetterF as number:
-        yield* consumeKeyword("false");
-        tokenValue = false;
-        return TokenType.Boolean;
-
-      case Unicode.SmallLetterN as number:
-        yield* consumeKeyword("null");
-        tokenValue = null;
-        return TokenType.Null;
-
-      case Unicode.OpenBracket as number:
-        current++;
-        return TokenType.ArrayOpen;
-      case Unicode.CloseBracket as number:
-        current++;
-        return TokenType.ArrayClose;
-
-      case Unicode.OpenBrace as number:
-        current++;
-        return TokenType.ObjectOpen;
-      case Unicode.CloseBrace as number:
-        current++;
-        return TokenType.ObjectClose;
-
-      case Unicode.Comma as number:
-        current++;
-        return TokenType.Comma;
-
-      case Unicode.Colon as number:
-        current++;
-        return TokenType.Colon;
-    }
-
-    if (code === Unicode.Dash as number || IsAsciiDigit(code)) {
-      tokenValue = yield* jsonNumber();
-      return TokenType.Number;
-    }
-
-    ThrowSyntaxError("Unexpected character");
-  };
-
-  type PartialArray = JSONValue[];
-  type ParsingArray = [ParseState.FinishArrayElement, PartialArray];
-  type PartialObject = Partial<JSONObject>;
-  type ParsingObject = [ParseState.FinishObjectMember, PartialObject, string];
-
-  const stack: (ParsingArray | ParsingObject)[] = [];
-
-  let value: JSONValue = "ERROR";
-
-  let token: TokenType;
-  let state = ParseState.Value as ParseState;
-  toParseElementOrPropertyValue: do {
-    toFinishValue: switch (state) {
-      case ParseState.Value: {
-        token = yield* advance();
-        processValueToken: do {
-          switch (token) {
-            case TokenType.String:
-            case TokenType.Number:
-            case TokenType.Boolean:
-            case TokenType.Null:
-              value = tokenValue;
-              break toFinishValue;
-
-            case TokenType.ArrayOpen: {
-              value = [] satisfies PartialArray;
-
-              token = yield* advance();
-              if (token === TokenType.ArrayClose)
-                break toFinishValue;
-
-              Push(stack, [ParseState.FinishArrayElement, value]);
-              continue processValueToken;
-            }
-
-            case TokenType.ObjectOpen: {
-              value = {} satisfies PartialObject;
-
-              yield* consumeWhitespace();
-
-              if (atEnd() && (yield* atEOF()))
-                ThrowSyntaxError("End of data while reading object contents");
-
-              const c = StringCharCodeAt(fragment, current);
-              if (c === Unicode.CloseBrace as number) {
-                current++;
-                break toFinishValue;
-              }
-
-              if (c !== Unicode.QuotationMark as number)
-                ThrowSyntaxError("Expected property name or '}'");
-
-              Push(stack, [ParseState.FinishObjectMember, value, yield* jsonString()]);
-
-              yield* advanceColon();
-
-              type assert_stateIsAlreadyValue = Expect<
-                Equal<
-                  typeof state,
-                  ParseState.Value
-                >
-              >;
-              continue toParseElementOrPropertyValue;
-            }
-
-            case TokenType.ArrayClose:
-            case TokenType.ObjectClose:
-            case TokenType.Colon:
-            case TokenType.Comma:
-              ThrowSyntaxError(`Encountered token with internal value ${token} in value context`);
-
-            default: {
-              type assert_AllCasesHandled = Expect<Equal<typeof token, never>>;
-            }
-          }
-        } while (true);
-      }
-
-      case ParseState.FinishObjectMember: {
-        const objectInfo = stack[stack.length - 1] as ParsingObject;
-        CreateDataProperty(objectInfo[1], objectInfo[2], value);
-
-        if (yield* advanceObjectEnds()) {
-          value = Pop(stack)[1];
-          break toFinishValue;
-        }
-
-        yield* consumeWhitespace();
-
-        if (atEnd() && (yield* atEOF()))
-          ThrowSyntaxError("End of data where property name was expected");
-
-        if (StringCharCodeAt(fragment, current) !== Unicode.QuotationMark as number)
-          ThrowError("Expected property name");
-
-        objectInfo[2] = yield* jsonString();
-
-        yield* advanceColon();
-
-        state = ParseState.Value;
-        continue toParseElementOrPropertyValue;
-      }
-
-      case ParseState.FinishArrayElement: {
-        const arrayInfo = stack[stack.length - 1] as ParsingArray;
-        Push(arrayInfo[1], value);
-        if (yield* advanceArrayEnds()) {
-          value = Pop(stack)[1];
-          break toFinishValue;
-        }
-
-        state = ParseState.Value;
-        continue toParseElementOrPropertyValue;
-      }
-    }
-
-    if (stack.length === 0)
-      break;
-
-    state = stack[stack.length - 1][0];
-  } while (true);
-
-  yield* consumeWhitespace();
-
-  if (!atEnd())
-    ThrowSyntaxError("Unexpected non-whitespace character after JSON data");
-
-  return value;
 }
 
 /**
@@ -575,7 +66,513 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
  * the applicable `add(fragment)` or `finish()` will throw a `SyntaxError`.
  */
 export class StreamingJSONParser {
-  private parser = ParseJSON();
+  private fragment = "";
+  private current = 0;
+  private end = 0;
+  private eof = false;
+
+  private* atEOF(): Generator<void, boolean, string> {
+    if (this.eof)
+      return true;
+
+    const data = yield;
+    if (data.length === 0) {
+      this.eof = true;
+      return true;
+    }
+
+    this.fragment = data;
+    this.current = 0;
+    this.end = data.length;
+    return false;
+  }
+
+  private atEnd(): boolean {
+    if (this.current > this.end)
+      BUG("incremented current past end");
+    return this.current === this.end;
+  }
+
+  private* consumeWhitespace(): Generator<void, void, string> {
+    do {
+      while (!this.atEnd()) {
+        const c = StringCharCodeAt(this.fragment, this.current);
+        if (!(c === Unicode.SP as number ||
+          c === Unicode.LF as number ||
+          c === Unicode.CR as number ||
+          c === Unicode.HT as number))
+          return;
+        this.current++;
+      }
+
+      if (yield* this.atEOF())
+        return;
+    } while (true);
+  }
+
+  private* consumeKeyword(keyword: string): Generator<void, void, string> {
+    let i = 0;
+    while (i < keyword.length) {
+      if (this.atEnd() && (yield* this.atEOF()))
+        ThrowSyntaxError(`End of data in middle of '${keyword}' keyword`);
+
+      const amount = Min(keyword.length - i, this.end - this.current);
+      if (StringSlice(keyword, i, i + amount) !==
+        StringSlice(this.fragment, this.current, this.current + amount))
+        ThrowSyntaxError(`Malformed '${keyword}' keyword`);
+
+      this.current += amount;
+      i += amount;
+    }
+  }
+
+  private* jsonString(): Generator<void, string, string> {
+    if (this.atEnd() || StringCharCodeAt(this.fragment, this.current) !== Unicode.QuotationMark as number)
+      BUG("jsonString called while not at start of string");
+    this.current++;
+
+    let value = "";
+    do {
+      if (this.atEnd() && (yield* this.atEOF()))
+        ThrowSyntaxError("Unterminated string literal");
+
+      let c = this.fragment[this.current++];
+      let code = StringCharCodeAt(c, 0);
+      if (code === Unicode.QuotationMark as number)
+        return value;
+
+      if (code < (Unicode.SP as number))
+        ThrowSyntaxError("Bad control character in string literal");
+
+      if (code === Unicode.Backslash as number) {
+        if (this.atEnd() && (yield* this.atEOF()))
+          ThrowSyntaxError("Incomplete escape sequence");
+
+        c = this.fragment[this.current++];
+        code = StringCharCodeAt(c, 0);
+        switch (code) {
+          case Unicode.QuotationMark as number:
+          case Unicode.ForwardSlash as number:
+          case Unicode.Backslash as number:
+            break;
+          case Unicode.SmallLetterB as number:
+            c = "\b";
+            break;
+          case Unicode.SmallLetterF as number:
+            c = "\f";
+            break;
+          case Unicode.SmallLetterN as number:
+            c = "\n";
+            break;
+          case Unicode.SmallLetterR as number:
+            c = "\r";
+            break;
+          case Unicode.SmallLetterT as number:
+            c = "\t";
+            break;
+          case Unicode.SmallLetterU as number: {
+            code = 0;
+            let digits = 0;
+            do {
+              if (this.atEnd() && (yield* this.atEOF()))
+                ThrowSyntaxError("Too-short Unicode escape");
+
+              const amount = Min(4 - digits, this.end - this.current);
+              for (let i = 0; i < amount; i++) {
+                const n = HexDigitToNumber(this.fragment, this.current + i);
+                if (n === null)
+                  ThrowSyntaxError(`Bad Unicode escape digit '${this.fragment[this.current + i]}'`);
+                code = (code << 4) | n;
+              }
+              digits += amount;
+              this.current += amount;
+            } while (digits < 4);
+            c = StringFromCharCode(code);
+            break;
+          }
+          default:
+            ThrowSyntaxError(`Bad escaped character '${c}'`);
+        }
+      }
+
+      value += c;
+    } while (true);
+  }
+
+  private* jsonNumber(): Generator<void, number, string> {
+    if (this.atEnd())
+      BUG("jsonNumber called while at end of fragment");
+
+    // ^-?(0|[1-9][0-9]+)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?$
+    let c = this.fragment[this.current];
+    let code = StringCharCodeAt(c, 0);
+    if (!(code === Unicode.Dash as number || IsAsciiDigit(code)))
+      BUG("jsonNumber called while not at start of number");
+
+    let numText = "";
+
+    // -?
+    if (code === Unicode.Dash as number) {
+      numText += c;
+      this.current++;
+      if (this.atEnd() && (yield* this.atEOF()))
+        ThrowSyntaxError("Missing number after '-'");
+
+      c = this.fragment[this.current];
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
+        ThrowSyntaxError("Unexpected nondigit");
+    }
+
+    // 0|[1-9][0-9]+
+    numText += c;
+    this.current++;
+    if (code !== Unicode.Zero as number) {
+      do {
+        if (this.atEnd()) {
+          if (yield* this.atEOF())
+            return ParseDecimalDigits(numText);
+        }
+
+        c = this.fragment[this.current];
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
+          break;
+
+        numText += c;
+        this.current++;
+      } while (true);
+    }
+
+    if (code !== Unicode.Period as number &&
+      (code & ~0x0010_0000) !== Unicode.LargeLetterE as number)
+      return ParseDecimalDigits(numText);
+
+    // (\.[0-9]+)?
+    if (code === Unicode.Period as number) {
+      numText += c;
+      this.current++;
+      if (this.atEnd() && (yield* this.atEOF()))
+        ThrowSyntaxError("Missing digits after decimal point");
+
+      c = this.fragment[this.current];
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
+        ThrowSyntaxError("Unterminated fractional number");
+      numText += c;
+      this.current++;
+
+      do {
+        if (this.atEnd() && (yield* this.atEOF()))
+          return ParseFloat(numText);
+
+        c = this.fragment[this.current];
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
+          break;
+
+        numText += c;
+        this.current++;
+      } while (true);
+    }
+
+    // ([eE][\+\-]?[0-9]+)?
+    if ((code & ~0b0010_0000) === Unicode.LargeLetterE as number) {
+      numText += c;
+      this.current++;
+      if (this.atEnd() && (yield* this.atEOF()))
+        ThrowSyntaxError("Missing digits after exponent indicator");
+
+      c = this.fragment[this.current];
+      code = StringCharCodeAt(c, 0);
+      if (code === Unicode.Plus as number || code === Unicode.Dash as number) {
+        numText += c;
+        this.current++;
+
+        if (this.atEnd() && (yield* this.atEOF()))
+          ThrowSyntaxError("Missing digits after exponent sign");
+      }
+
+      c = this.fragment[this.current];
+      code = StringCharCodeAt(c, 0);
+      if (!IsAsciiDigit(code))
+        ThrowSyntaxError("Exponent part is missing a number");
+      numText += c;
+      this.current++;
+
+      do {
+        if (this.atEnd() && (yield* this.atEOF()))
+          break;
+
+        c = this.fragment[this.current];
+        code = StringCharCodeAt(c, 0);
+        if (!IsAsciiDigit(code))
+          break;
+
+        numText += c;
+        this.current++;
+      } while (true);
+    }
+
+    return ParseFloat(numText);
+  }
+
+  private* advanceColon(): Generator<void, void, string> {
+    yield* this.consumeWhitespace();
+
+    if (this.atEnd() && (yield* this.atEOF()))
+      ThrowSyntaxError("End of data looking for colon in object entry");
+
+    if (StringCharCodeAt(this.fragment, this.current) !== Unicode.Colon as number)
+      ThrowSyntaxError("Expected ':' after property name in object");
+
+    this.current++;
+  }
+
+  private* advanceObjectEnds(): Generator<void, boolean, string> {
+    yield* this.consumeWhitespace();
+
+    if (this.atEnd() && (yield* this.atEOF()))
+      ThrowSyntaxError("End of data after property value in object");
+
+    const code = StringCharCodeAt(this.fragment, this.current++);
+    if (code === Unicode.Comma as number)
+      return false;
+    if (code === Unicode.CloseBrace as number)
+      return true;
+
+    ThrowSyntaxError("Expected ',' or '}' after property value in object");
+  }
+
+  private* advanceArrayEnds(): Generator<void, boolean, string> {
+    yield* this.consumeWhitespace();
+
+    if (this.atEnd() && (yield* this.atEOF()))
+      ThrowSyntaxError("End of data when ',' or ']' was expected");
+
+    const code = StringCharCodeAt(this.fragment, this.current++);
+    if (code === Unicode.Comma as number)
+      return false;
+    if (code === Unicode.CloseBracket as number)
+      return true;
+
+    ThrowSyntaxError("Expected property name or '}'");
+  }
+
+  private tokenValue: boolean | string | number | null = null;
+
+  private* advance(): Generator<void, TokenType, string> {
+    yield* this.consumeWhitespace();
+
+    if (this.atEnd() && (yield* this.atEOF()))
+      ThrowSyntaxError("Unexpected end of data");
+
+    const code = StringCharCodeAt(this.fragment, this.current);
+    switch (code) {
+      case Unicode.QuotationMark as number:
+        this.tokenValue = yield* this.jsonString();
+        return TokenType.String;
+
+      case Unicode.SmallLetterT as number:
+        yield* this.consumeKeyword("true");
+        this.tokenValue = true;
+        return TokenType.Boolean;
+
+      case Unicode.SmallLetterF as number:
+        yield* this.consumeKeyword("false");
+        this.tokenValue = false;
+        return TokenType.Boolean;
+
+      case Unicode.SmallLetterN as number:
+        yield* this.consumeKeyword("null");
+        this.tokenValue = null;
+        return TokenType.Null;
+
+      case Unicode.OpenBracket as number:
+        this.current++;
+        return TokenType.ArrayOpen;
+      case Unicode.CloseBracket as number:
+        this.current++;
+        return TokenType.ArrayClose;
+
+      case Unicode.OpenBrace as number:
+        this.current++;
+        return TokenType.ObjectOpen;
+      case Unicode.CloseBrace as number:
+        this.current++;
+        return TokenType.ObjectClose;
+
+      case Unicode.Comma as number:
+        this.current++;
+        return TokenType.Comma;
+
+      case Unicode.Colon as number:
+        this.current++;
+        return TokenType.Colon;
+    }
+
+    if (code === Unicode.Dash as number || IsAsciiDigit(code)) {
+      this.tokenValue = yield* this.jsonNumber();
+      return TokenType.Number;
+    }
+
+    ThrowSyntaxError("Unexpected character");
+  }
+
+  /**
+   * A generator for incrementally parsing a JSON text from nonempty fragments.
+   * (Callers must filter out empty fragments manually if they choose to support
+   * them.)
+   *
+   * After the implicit initial `yield` is passed by calling `.next()`, add the
+   * nonempty fragments of JSON text using `.next(fragment)`.  Indicate that all
+   * fragments have been added using `.next("")`.
+   *
+   * If a `.next(fragment)` causes the concatenated fragments to not be a valid
+   * prefix of JSON text, or if the concatenated fragments upon `.next("")` form
+   * invalid JSON text, the pertinent `.next()` throws a `SyntaxError`.
+   *
+   * If upon `.next("")` the concatenated fragments form valid JSON text, that
+   * call returns `{ done: true, value: <result of parsing the JSON text> }`.
+   */
+  private* parseJSON(): Generator<void, JSONValue, string> {
+    type PartialArray = JSONValue[];
+    type ParsingArray = [ParseState.FinishArrayElement, PartialArray];
+    type PartialObject = Partial<JSONObject>;
+    type ParsingObject = [ParseState.FinishObjectMember, PartialObject, string];
+
+    const stack: (ParsingArray | ParsingObject)[] = [];
+
+    let value: JSONValue = "ERROR"; // overwritten when the value is parsed
+
+    const enum ParseState {
+      FinishArrayElement,
+      FinishObjectMember,
+      Value,
+    };
+
+    let token: TokenType;
+    let state: ParseState = ParseState.Value;
+    toParseElementOrPropertyValue: do {
+      toFinishValue: switch (state) {
+        case ParseState.Value: {
+          token = yield* this.advance();
+          processValueToken: do {
+            switch (token) {
+              case TokenType.String:
+              case TokenType.Number:
+              case TokenType.Boolean:
+              case TokenType.Null:
+                value = this.tokenValue;
+                break toFinishValue;
+
+              case TokenType.ArrayOpen: {
+                value = [] satisfies PartialArray;
+
+                token = yield* this.advance();
+                if (token === TokenType.ArrayClose)
+                  break toFinishValue;
+
+                Push(stack, [ParseState.FinishArrayElement, value]);
+                continue processValueToken;
+              }
+
+              case TokenType.ObjectOpen: {
+                value = {} satisfies PartialObject;
+
+                yield* this.consumeWhitespace();
+
+                if (this.atEnd() && (yield* this.atEOF()))
+                  ThrowSyntaxError("End of data while reading object contents");
+
+                const c = StringCharCodeAt(this.fragment, this.current);
+                if (c === Unicode.CloseBrace as number) {
+                  this.current++;
+                  break toFinishValue;
+                }
+
+                if (c !== Unicode.QuotationMark as number)
+                  ThrowSyntaxError("Expected property name or '}'");
+
+                Push(stack, [ParseState.FinishObjectMember, value, yield* this.jsonString()]);
+
+                yield* this.advanceColon();
+
+                type assert_stateIsAlreadyValue = Expect<
+                  Equal<
+                    typeof state,
+                    ParseState.Value
+                  >
+                >;
+                continue toParseElementOrPropertyValue;
+              }
+
+              case TokenType.ArrayClose:
+              case TokenType.ObjectClose:
+              case TokenType.Colon:
+              case TokenType.Comma:
+                ThrowSyntaxError(`Encountered token with internal value ${token} in value context`);
+
+              default: {
+                type assert_AllCasesHandled = Expect<Equal<typeof token, never>>;
+              }
+            }
+          } while (true);
+        }
+
+        case ParseState.FinishObjectMember: {
+          const objectInfo = stack[stack.length - 1] as ParsingObject;
+          CreateDataProperty(objectInfo[1], objectInfo[2], value);
+
+          if (yield* this.advanceObjectEnds()) {
+            value = Pop(stack)[1];
+            break toFinishValue;
+          }
+
+          yield* this.consumeWhitespace();
+
+          if (this.atEnd() && (yield* this.atEOF()))
+            ThrowSyntaxError("End of data where property name was expected");
+
+          if (StringCharCodeAt(this.fragment, this.current) !== Unicode.QuotationMark as number)
+            ThrowError("Expected property name");
+
+          objectInfo[2] = yield* this.jsonString();
+
+          yield* this.advanceColon();
+
+          state = ParseState.Value;
+          continue toParseElementOrPropertyValue;
+        }
+
+        case ParseState.FinishArrayElement: {
+          const arrayInfo = stack[stack.length - 1] as ParsingArray;
+          Push(arrayInfo[1], value);
+          if (yield* this.advanceArrayEnds()) {
+            value = Pop(stack)[1];
+            break toFinishValue;
+          }
+
+          state = ParseState.Value;
+          continue toParseElementOrPropertyValue;
+        }
+      }
+
+      if (stack.length === 0)
+        break;
+
+      state = stack[stack.length - 1][0];
+    } while (true);
+
+    yield* this.consumeWhitespace();
+
+    if (!this.atEnd())
+      ThrowSyntaxError("Unexpected non-whitespace character after JSON data");
+
+    return value;
+  }
+
+  private parser: Generator<void, JSONValue, string> = this.parseJSON();
   private complete = false;
 
   constructor() {
@@ -596,7 +593,7 @@ export class StreamingJSONParser {
    *   `Error` (exactly, not a subclass) if fragments can't be added because a
    *   previous `add(fragment)` already threw or because `finish()` was called.
    */
-  add(fragment: string): void {
+  public add(fragment: string): void {
     if (this.complete)
       ThrowError("Can't add fragment: parsing already completed");
 
@@ -628,7 +625,7 @@ export class StreamingJSONParser {
    *   The overall parse result if the concatenated fragments constitute valid
    *   JSON text.
    */
-  finish(): JSONValue;
+  public finish(): JSONValue;
   /**
    * Stop feeding fragments to this parser, and compute the final parse result
    * as the value `unfiltered`.
@@ -653,8 +650,8 @@ export class StreamingJSONParser {
    *   The overall parse result if the concatenated fragments constitute valid
    *   JSON text, as modified by `reviver`.
    */
-  finish<T>(reviver: Reviver<T>): T;
-  finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
+  public finish<T>(reviver: Reviver<T>): T;
+  public finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
     if (this.complete) {
       ThrowError(
         "Can't call finish: it was either already called or a syntax error " +
@@ -691,7 +688,7 @@ export class StreamingJSONParser {
    * Return `false` if no more fragments can be added (because `finish()` was
    * called or because a previously-added fragment caused a JSON syntax error).
    */
-  done(): boolean {
+  public done(): boolean {
     return this.complete;
   }
 };
