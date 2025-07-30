@@ -66,11 +66,20 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
  * the applicable `add(fragment)` or `finish()` will throw a `SyntaxError`.
  */
 export class StreamingJSONParser {
+  /** The current fragment being parsed. */
   private fragment = "";
+  /** The index within `this.fragment` of the next unexamined character. */
   private current = 0;
+  /** The length of `this.fragment`. */
   private end = 0;
+  /** Whether all fragments have been added. */
   private eof = false;
 
+  /**
+   * Assuming `this.atEnd()`, wait for another fragment.  If the sentinel ""
+   * fragment is received, return `true`.  Otherwise set it as the current
+   * fragment and return `false` so that it can be parsed.
+   */
   private* atEOF(): Generator<void, boolean, string> {
     if (this.eof)
       return true;
@@ -87,12 +96,17 @@ export class StreamingJSONParser {
     return false;
   }
 
+  /** Whether we've parsed to the end of the current fragment. */
   private atEnd(): boolean {
     if (this.current > this.end)
       BUG("incremented current past end");
     return this.current === this.end;
   }
 
+  /**
+   * Consume whitespace until the current character isn't whitespace (or all
+   * JSON text has been processed).
+   */
   private* consumeWhitespace(): Generator<void, void, string> {
     do {
       while (!this.atEnd()) {
@@ -110,6 +124,7 @@ export class StreamingJSONParser {
     } while (true);
   }
 
+  /** Consume the given keyword starting from the current character. */
   private* consumeKeyword(keyword: string): Generator<void, void, string> {
     let i = 0;
     while (i < keyword.length) {
@@ -126,6 +141,7 @@ export class StreamingJSONParser {
     }
   }
 
+  /** Consume and return a JSON string, starting at its leading `"`. */
   private* jsonString(): Generator<void, string, string> {
     if (this.atEnd() || StringCharCodeAt(this.fragment, this.current) !== Unicode.QuotationMark as number)
       BUG("jsonString called while not at start of string");
@@ -199,6 +215,7 @@ export class StreamingJSONParser {
     } while (true);
   }
 
+  /** Consume and return a JSON number, starting at its leading digit or `-`. */
   private* jsonNumber(): Generator<void, number, string> {
     if (this.atEnd())
       BUG("jsonNumber called while at end of fragment");
@@ -317,6 +334,10 @@ export class StreamingJSONParser {
     return ParseFloat(numText);
   }
 
+  /**
+   * Consume the (optional whitespace and) colon after a property name in an
+   * object literal.
+   */
   private* advanceColon(): Generator<void, void, string> {
     yield* this.consumeWhitespace();
 
@@ -329,6 +350,12 @@ export class StreamingJSONParser {
     this.current++;
   }
 
+  /**
+   * Consume the (optional whitespace and) `,` or `}` after a property value in
+   * an object literal.
+   *
+   * @returns `true` iff `}` was consumed and the object has ended
+   */
   private* advanceObjectEnds(): Generator<void, boolean, string> {
     yield* this.consumeWhitespace();
 
@@ -344,6 +371,12 @@ export class StreamingJSONParser {
     ThrowSyntaxError("Expected ',' or '}' after property value in object");
   }
 
+  /**
+   * Consume the (optional whitespace and) `,` or `]` after an element in an
+   * array literal.
+   *
+   * @returns `true` iff `]` was consumed and the array has ended
+   */
   private* advanceArrayEnds(): Generator<void, boolean, string> {
     yield* this.consumeWhitespace();
 
@@ -359,8 +392,10 @@ export class StreamingJSONParser {
     ThrowSyntaxError("Expected property name or '}'");
   }
 
+  /** The value of the atomic token consumed by an `advance`. */
   private tokenValue: boolean | string | number | null = null;
 
+  /** Advance and consume a token, in context where a JSON value is expected. */
   private* advance(): Generator<void, TokenType, string> {
     yield* this.consumeWhitespace();
 
@@ -597,7 +632,7 @@ export class StreamingJSONParser {
     if (this.complete)
       ThrowError("Can't add fragment: parsing already completed");
 
-    // Filter out empty fragments so that "" can indicate end of JSON text.
+    // Ignore empty fragments that would mistakenly indicate end of JSON text.
     if (fragment.length === 0)
       return;
 
