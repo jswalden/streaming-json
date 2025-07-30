@@ -222,7 +222,7 @@ class StringifyGenerator {
     Pop(this.stack);
   }
 
-  *run(value: unknown): Generator<string, void, void> {
+  public *run(value: unknown): Generator<string, void, void> {
     let sval: StringifiableValue;
     {
       const v: StringifiableValue | undefined = this.preprocessValue(
@@ -444,7 +444,7 @@ class StringifyGenerator {
    * because `replacer` isn't a function.  We relax this to allow `null` when
    * `holder` can't be observed.
    */
-  protected preprocessValue(
+  private preprocessValue(
     value: unknown,
     holder: object | null,
     key: string,
