@@ -15,7 +15,7 @@ describe("default export tests", () => {
     type test_stringifyArgs = Expect<
       Equal<
         Parameters<typeof stringify>,
-        [unknown, ReplacerFunction | ReplacerPropertyList | NoReplacer, number | string]
+        [unknown, (ReplacerFunction | ReplacerPropertyList | NoReplacer)?, (number | string)?]
       >
     >;
 

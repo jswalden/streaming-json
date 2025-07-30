@@ -559,8 +559,8 @@ class StringifyGenerator {
  */
 export function stringify(
   value: unknown,
-  replacer: ReplacerFunction | ReplacerPropertyList | NoReplacer,
-  space: string | number,
+  replacer?: ReplacerFunction | ReplacerPropertyList | NoReplacer,
+  space: string | number = "",
 ): IterableIterator<string, void, void> {
   return new StringifyGenerator(replacer, space).run(value);
 }
