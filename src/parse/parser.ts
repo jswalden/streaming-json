@@ -563,26 +563,25 @@ type ParseResult<R extends undefined | Reviver<unknown>> =
       : never;
 
 /**
- * A JSON parser when you'd prefer to incrementally parse your JSON in fragments
- * rather than from one single string.
+ * A JSON parser when you wish to incrementally parse your JSON in fragments,
+ * rather than from one complete string.
  *
  * Feed fragments of JSON text to the parser by calling `add(fragment)`.  When
  * you've fed the entire JSON text to the parser, call `finish()` to get the
  * (optionally revived) result.
  *
- * If the concatenation of fragments is ever definitely not a prefix of valid
- * JSON text, or if the final concatenation of all fragments is not valid JSON
- * text, a `SyntaxError` is thrown by the applicable `add(fragment)` or
- * `finish()`.
+ * If the concatenation of added fragments becomes not a prefix of valid JSON
+ * text, or if the final concatenation of all fragments isn't valid JSON text,
+ * the applicable `add(fragment)` or `finish()` will throw a `SyntaxError`.
  */
 export class StreamingJSONParser {
   private parser = ParseJSON();
   private complete = false;
 
   constructor() {
-    // Advance past initial implicit yield to first actual yield.
-    const done = this.parser.next().done;
-    if (typeof done === "boolean" && done)
+    // Advance past the initial implicit yield to the first actual yield that
+    // waits for a fragment.
+    if (this.parser.next().done === true)
       BUG("parsing finished before any fragments added");
   }
 
@@ -591,72 +590,69 @@ export class StreamingJSONParser {
    * being parsed.
    *
    * @throws
-   *   A `SyntaxError` if adding this fragment makes the concatenation of all
+   *   `SyntaxError` if adding this fragment makes the concatenation of all
    *   fragments not a valid prefix of JSON text.
    * @throws
-   *   An `Error` if fragments can't be added because a previous fragment
-   *   triggered a syntax error or because `finish()` was called.
+   *   `Error` (exactly, not a subclass) if fragments can't be added because a
+   *   previous `add(fragment)` already threw or because `finish()` was called.
    */
   add(fragment: string): void {
     if (this.complete)
       ThrowError("Can't add fragment: parsing already completed");
 
-    // Filter out magical end-of-text fragments.
-    if (fragment.length > 0) {
-      try {
-        const done = this.parser.next(fragment).done;
-        if (typeof done === "boolean" && done)
-          BUG("add(nonempty fragment) should never complete parsing");
-      } catch (e) {
-        this.complete = true;
-        throw e;
-      }
+    // Filter out empty fragments so that "" can indicate end of JSON text.
+    if (fragment.length === 0)
+      return;
+
+    try {
+      if (this.parser.next(fragment).done === true)
+        BUG("add(nonempty valid fragment) should never complete parsing");
+    } catch (e) {
+      this.complete = true;
+      throw e;
     }
   }
 
   /**
-   * Returns `true` if more fragments can be added to this parser (even if only
-   * trailing whitespace) and `finish()` hasn't been called.
-   *
-   * Return `false` if no more fragments can be added (because `finish()` was
-   * called or because a preceding fragment contained a syntax error).
-   */
-  done(): boolean {
-    return this.complete;
-  }
-
-  /**
    * Stop feeding fragments to this parser and compute and return the final
-   * result of parsing and any requested postprocessing.
-   *
-   * If the concatenation of all fragments (or, in the vacuous case of no
-   * fragments, the empty string) is not valid JSON (even as it necessarily was
-   * an acceptable prefix of some valid JSON or `add(fragment)` would have
-   * thrown), throw a `SyntaxError`.
-   *
-   * Otherwise compute the overall result of parsing as the value `unfiltered`.
-   * If a `reviver` was not supplied, return `unfiltered`.
-   *
-   * If `reviver` was supplied, apply it to `unfiltered` and to its properties,
-   * elements, subarrays, subobjects subproperties, etc. recursively as
-   * [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse)
-   * would do if it were passed `reviver` and the combined fragments passed to
-   * this parser.  The result of reviving as `JSON.parse` would have computed it
-   * is then returned.
+   * parse result.
    *
    * @throws
    *   `Error` if parsing was already `done()`.
    * @throws
-   *   `SyntaxError` if parsing wasn't `done()` and the concatenation of all
-   *   fragments isn't valid JSON (even as it must be the *prefix* of valid JSON
-   *   text).
-   * @throws
-   *   Any value thrown by `reviver` during the reviving process.
+   *   `SyntaxError` if the concatenation of all added fragments (which could be
+   *   the empty string if no fragments were added) isn't valid JSON.  (It must
+   *   be the *prefix* of valid JSON text or a preceding `add(fragment)` would
+   *   have thrown.)
    * @returns
-   *   The overall parse result, optionally revived, if all fragments together
-   *   constitute valid JSON text.
+   *   The overall parse result if the concatenated fragments constitute valid
+   *   JSON text.
    */
   finish(): JSONValue;
+  /**
+   * Stop feeding fragments to this parser, and compute the final parse result
+   * as the value `unfiltered`.
+   *
+   * Then apply `reviver` to `unfiltered` (and recursively to its properties and
+   * elements) exactly as
+   * [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse)
+   * would do if it were passed `reviver` and the concatenation of fragments
+   * passed to this parser, and return the value `JSON.parse` would return
+   * (which will be the result returned by the outermost call of `reviver`).
+   *
+   * @throws
+   *   `Error` if parsing was already `done()`.
+   * @throws
+   *   `SyntaxError` if the concatenation of all added fragments (which could be
+   *   the empty string if no fragments were added) isn't valid JSON.  (It must
+   *   be the *prefix* of valid JSON text or a preceding `add(fragment)` would
+   *   have thrown.)
+   * @throws
+   *   Any value that `reviver` throws during the reviving process.
+   * @returns
+   *   The overall parse result if the concatenated fragments constitute valid
+   *   JSON text, as modified by `reviver`.
+   */
   finish<T>(reviver: Reviver<T>): T;
   finish<T>(reviver?: Reviver<T>): ParseResult<typeof reviver> {
     if (this.complete) {
@@ -668,19 +664,15 @@ export class StreamingJSONParser {
 
     let unfiltered: JSONValue;
     try {
-      // Finish parsing and compute the unfiltered result of the parse.
       const result = this.parser.next("");
-
-      const done = result.done;
-      if (typeof done !== "boolean" || !done)
+      if (result.done === true)
+        unfiltered = result.value;
+      else
         ThrowSyntaxError("Complete text is not valid JSON");
-
-      unfiltered = result.value;
     } finally {
       this.complete = true;
     }
 
-    // If a reviver wasn't supplied, return the unfiltered result.
     if (typeof reviver === "undefined")
       return unfiltered;
 
@@ -688,6 +680,19 @@ export class StreamingJSONParser {
     const rootName = "";
     const root: object = { [rootName]: unfiltered };
     return InternalizeJSONProperty(root, rootName, reviver);
+  }
+
+  /**
+   * Returns `true` if more fragments can be added to this parser and `finish()`
+   * hasn't been called.  (Even if the concatenated fragments constitute a
+   * complete JSON text, fragments containing only whitespace can still be
+   * added.)
+   *
+   * Return `false` if no more fragments can be added (because `finish()` was
+   * called or because a previously-added fragment caused a JSON syntax error).
+   */
+  done(): boolean {
+    return this.complete;
   }
 };
 
