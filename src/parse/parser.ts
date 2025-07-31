@@ -717,7 +717,7 @@ export class StreamingJSONParser {
   }
 
   /**
-   * Returns `true` if more fragments can be added to this parser and `finish()`
+   * Return `true` if more fragments can be added to this parser and `finish()`
    * hasn't been called.  (Even if the concatenated fragments constitute a
    * complete JSON text, fragments containing only whitespace can still be
    * added.)
