@@ -93,7 +93,7 @@ function toPropertyList(array: ReplacerPropertyList): PropertyList {
  * Note that when the pertinent object is an array, keys are *strings* and not
  * numerical indexes.
  */
-export type ReplacerFunction = ((this: object, key: string, value: unknown) => unknown);
+export type ReplacerFunction = (this: object, key: string, value: unknown) => unknown;
 
 /** No replacer. */
 export type NoReplacer = undefined | null;
