@@ -504,11 +504,11 @@ class StringifyGenerator {
 };
 
 /**
- * Create an iterator over successive fragments of the JSON stringification of a
- * value, as if by `JSON.stringify(value, replacer, space)`.  Fragments will be
- * iterated until the entire stringification has been returned.  Where fragment
- * boundaries occur is explicitly not defined: do not attempt to infer or rely
- * upon boundary locations.
+ * Create an iterable iterator over successive fragments of the JSON
+ * stringification of a value as if by `JSON.stringify(value, replacer, space)`.
+ * Fragments are iterated until the entire stringification has been returned.
+ * Where fragment boundaries occur is explicitly not defined: do not attempt to
+ * infer or rely upon boundary locations.
  *
  * If the incremental stringification operations performed to iterate the next
  * fragment throw an exception, that exception will propagate to the caller.
@@ -535,8 +535,9 @@ class StringifyGenerator {
  * ```
  *
  * If `value` itself is not stringifiable (e.g. it's `undefined`, a symbol, or
- * is callable), *iteration will not produce any fragments*.  (Note that in this
- * case `JSON.stringify` would return `undefined`, not a string.)
+ * is callable) or if `replacer` doesn't preserve `value`, *iteration produces
+ * no fragments*.  (Note that in this case `JSON.stringify` returns `undefined`,
+ * not a string.)
  *
  * ```js
  * import { stringify } from "@jswalden/streaming-json";
