@@ -1,7 +1,13 @@
 import type { Equal, Expect } from "type-testing";
 import { ArrayFind, IsArray, Pop, Push } from "../stdlib/array.js";
-import { ExtractBooleanData } from "../stdlib/boolean.js";
-import { ExtractBigIntData } from "../stdlib/bigint.js";
+import {
+  ExtractBigIntData,
+  ExtractBooleanData,
+  HasBigIntDataSlot,
+  HasBooleanDataSlot,
+  HasNumberDataSlot,
+  HasStringDataSlot,
+} from "../stdlib/boxed.js";
 import { ThrowError, ThrowTypeError } from "../stdlib/error.js";
 import { JSONStringify } from "../stdlib/json-stringify.js";
 import { LengthOfArrayLike } from "../stdlib/length.js";
@@ -471,13 +477,13 @@ class StringifyGenerator {
       return value;
 
     if (typeof value === "object") {
-      if (value instanceof Number)
+      if (HasNumberDataSlot(value))
         value = ToNumber(value);
-      else if (value instanceof String)
+      else if (HasStringDataSlot(value))
         value = ToString(value);
-      else if (value instanceof Boolean)
+      else if (HasBooleanDataSlot(value))
         value = ExtractBooleanData(value);
-      else if (value instanceof BigInt)
+      else if (HasBigIntDataSlot(value))
         value = ExtractBigIntData(value);
     }
 
