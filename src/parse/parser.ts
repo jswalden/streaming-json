@@ -81,6 +81,8 @@ export class StreamingJSONParser {
    * fragment and return `false` so that it can be parsed.
    */
   private *atEOF(): Generator<void, boolean, string> {
+    if (this.current !== this.end)
+      BUG("atEOF called when !atEnd()");
     if (this.eof)
       return true;
 
