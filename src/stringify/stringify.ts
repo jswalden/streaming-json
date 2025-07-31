@@ -18,7 +18,7 @@ import { ReflectApply } from "../stdlib/reflect.js";
 import { SetHas, SetAdd } from "../stdlib/set.js";
 import { StringRepeat, StringSlice, ToString } from "../stdlib/string.js";
 
-// The algorithm heres is patterned upon the `JSON.stringify`
+// This algorithm is patterned on the `JSON.stringify`
 // [spec algorithm](https://tc39.es/ecma262/#sec-json.stringify).  However, the
 // spec algorithm naively serializes object property values to string (or
 // `undefined` if serialization is disallowed) before serializing the property
