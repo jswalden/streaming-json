@@ -712,7 +712,7 @@ export class StreamingJSONParser {
 
     // If a reviver was supplied, use it to compute the true desired value.
     const rootName = "";
-    const root: object = { [rootName]: unfiltered };
+    const root = { [rootName]: unfiltered };
     return InternalizeJSONProperty(root, rootName, reviver);
   }
 
