@@ -111,7 +111,7 @@ type FinishArrayElement = {
   readonly object: readonly unknown[];
   index: number;
   readonly length: number;
-  readonly indent: string;
+  readonly priorIndent: string;
   readonly separator: string;
   readonly end: string;
 };
@@ -130,7 +130,7 @@ type AfterUnfilteredObjectMember = {
   readonly object: Record<string, unknown>;
   index: number;
   readonly props: readonly string[];
-  readonly indent: string;
+  readonly priorIndent: string;
   readonly colon: string;
   readonly comma: string;
   readonly closing: string;
@@ -199,10 +199,10 @@ class StringifyGenerator {
       object: array,
       index: 0,
       length,
-      indent: stepBack,
+      priorIndent: stepBack,
       separator,
       end,
-    });
+    } satisfies FinishArrayElement);
 
     return begin;
   }
@@ -259,7 +259,7 @@ class StringifyGenerator {
               BUG("iterated past end of array elements");
 
             this.exitObject();
-            this.indent = arrayState.indent;
+            this.indent = arrayState.priorIndent;
 
             // We ignore that `this.indent` might make this extremely long.
             yield arrayState.end;
@@ -365,7 +365,7 @@ class StringifyGenerator {
             object,
             index: index + 1,
             props: keys,
-            indent: stepBack,
+            priorIndent: stepBack,
             colon,
             comma,
             closing,
@@ -390,7 +390,7 @@ class StringifyGenerator {
                 BUG("iterated past keys end looking for subsequent stringifiable");
 
               this.exitObject();
-              this.indent = objectState.indent;
+              this.indent = objectState.priorIndent;
 
               // We ignore that `this.indent` might make this extremely long.
               yield objectState.closing;
