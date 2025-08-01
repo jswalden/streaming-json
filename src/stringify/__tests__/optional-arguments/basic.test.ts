@@ -49,8 +49,6 @@ describe("stringify omitting arguments", () => {
         (prop: string, value: unknown) => prop !== "" ? undefined : value,
       );
 
-      // Even the `{ "": { x: 42, y: 17 } }` is omitted, so the overall thing
-      // doesn't stringify to anything.
       expect([...it]).toEqual(["{}"]);
     });
   });
