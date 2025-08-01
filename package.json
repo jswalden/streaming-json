@@ -50,7 +50,7 @@
     "dist/**/*"
   ],
   "devDependencies": {
-    "@stylistic/eslint-plugin": "~5.1.0",
+    "@stylistic/eslint-plugin": "~5.2.2",
     "@types/node": "~24.0.13",
     "eslint": "~9.31.0",
     "eslint-plugin-n": "~17.21.0",
