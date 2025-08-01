@@ -14,9 +14,9 @@ observably disturb the intermediate states created by ECMAScript semantics.)
 
 ## Stringification
 
-This package implements a `stringify` function that returns an iterator over the
-fragments that constitute the JSON stringification of a value.  You can either
-import `stringify` directly:
+This package implements a `stringify` function that returns an iterable iterator
+over the fragments that constitute the JSON stringification of a value.  You can
+either import `stringify` directly:
 
 ```js
 import { stringify } from "@jswalden/streaming-json";
@@ -81,23 +81,26 @@ let frags = [...stringify(value, null, 2)];
 assert(frags.length === 0);
 ```
 
-It's incumbent upon users who try to stringify sufficiently-broad values to
-appropriately handle no fragments being iterated.
+It's incumbent upon users who stringify sufficiently-broad values or use
+sufficiently-uncautious `replacer` functions to appropriately handle no
+fragments being iterated.
 
 [^stringify-not-string]: `JSON.stringify` returns `undefined` if the `value`
 passed to it is `undefined`, a
 [symbol](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol),
 a callable object (i.e. `typeof value === "function"`), or an object whose
-`toJSON` property is a function that returns one of these values.
+`toJSON` property is a function that returns one of these values.  It also
+returns `undefined` if a `replacer` function is supplied and if `replacer`, when
+invoked for `value`, returns `undefined`, a symbol, or a callable object.
 
 ## Parsing
 
 This package exports a `StreamingJSONParser` class that can be used to
 incrementally parse fragments of a full JSON text.  Create a
-`StreamingJSONParser`, feed it fragments of the JSON text using `add(fragment)`,
-and then finish parsing and retrieve the result of parsing using `finish()` --
-passing a `reviver` that behaves as the optional `reviver` argument to
-`JSON.parse` would if desired:
+`StreamingJSONParser`, feed it JSON fragments using `add(fragment)`, and then
+finish parsing and retrieve the result of parsing using `finish()` -- passing a
+`reviver` that behaves as the optional `reviver` argument to `JSON.parse` would
+if desired:
 
 ```js
 import { JSONParser } from "@jswalden/streaming-json";
@@ -111,9 +114,9 @@ parser.add('7, "complex": {');
 parser.add("}}");
 
 const result = parser.finish();
-assert(result && typeof result === "object");
+assert(typeof result === "object" && result !== null);
 assert(result.propertyName === 17);
-assert(result.complex !== null);
+assert(typeof result.complex === "object" && result.complex !== null);
 assert(Object.keys(result.complex).length === 0);
 
 const withReviver = new StreamingJSONParser();
