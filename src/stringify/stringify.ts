@@ -261,14 +261,20 @@ class StringifyGenerator {
             this.exitObject();
             this.indent = arrayState.priorIndent;
 
-            // We ignore that `this.indent` might make this extremely long.
+            // The closing bracket's indentation in theory could be extremely
+            // long.  But it can only grow 10 characters at a time, and if it
+            // grew *that* long, the full JSON length would grow quadratically
+            // (i.e. a megabyte-long indent implies terabyte-length full JSON
+            // *for indentation*).  So we ignore the concern as unrealistic.
             yield arrayState.end;
             break toFinishValue;
           }
 
           const { object: array, separator } = arrayState;
 
-          // We ignore that `this.indent` might make this extremely long.
+          // As noted in the comment starting "The closing bracket's
+          // indentation" above, we ignore the risk that `this.indent` might
+          // make this extremely long as unrealistic.
           yield separator;
 
           sval = this.preprocessValue(array[index], array, ToString(index)) ?? null;
@@ -294,7 +300,9 @@ class StringifyGenerator {
               break toFinishValue;
             }
 
-            // We ignore that `this.indent` might make this extremely long.
+            // As noted in the comment starting "The closing bracket's
+            // indentation" above, we ignore the risk that `this.indent` might
+            // make this extremely long as unrealistic.
             yield this.enterArray(sval, length);
 
             sval = this.preprocessValue(sval[0], sval, "0") ?? null;
@@ -392,7 +400,9 @@ class StringifyGenerator {
               this.exitObject();
               this.indent = objectState.priorIndent;
 
-              // We ignore that `this.indent` might make this extremely long.
+              // As noted in the comment starting "The closing bracket's
+              // indentation" above, we ignore the risk that `this.indent` might
+              // make this extremely long as unrealistic.
               yield objectState.closing;
               break toFinishValue;
             }
