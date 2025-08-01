@@ -1,3 +1,5 @@
+yarn install --immutable
 yarn lint-staged
+yarn knip
 yarn test
 yarn check-types
