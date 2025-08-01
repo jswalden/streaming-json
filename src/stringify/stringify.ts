@@ -264,8 +264,8 @@ class StringifyGenerator {
             // The closing bracket's indentation in theory could be extremely
             // long.  But it can only grow 10 characters at a time, and if it
             // grew *that* long, the full JSON length would grow quadratically
-            // (i.e. a megabyte-long indent implies terabyte-length full JSON
-            // *for indentation*).  So we ignore the concern as unrealistic.
+            // (i.e. 1MB-length indentation implies ~1TB-length full JSON *just
+            // for indentation*).  So we treat the concern as unrealistic.
             yield arrayState.end;
             break toFinishValue;
           }
