@@ -52,7 +52,7 @@
   "devDependencies": {
     "@stylistic/eslint-plugin": "~5.2.2",
     "@types/node": "~24.0.13",
-    "eslint": "~9.31.0",
+    "eslint": "~9.32.0",
     "eslint-plugin-n": "~17.21.3",
     "husky": "~9.1.7",
     "knip": "~5.62.0",
