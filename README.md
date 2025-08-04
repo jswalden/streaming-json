@@ -15,8 +15,7 @@ observably disturb the intermediate states created by ECMAScript semantics.)
 ## Stringification
 
 This package implements a `stringify` function that returns an iterable iterator
-over the fragments that constitute the JSON stringification of a value.  You can
-either import `stringify` directly:
+over the fragments that constitute the JSON stringification of a value:
 
 ```js
 import { stringify } from "@jswalden/streaming-json";
@@ -28,25 +27,12 @@ async function writeAsJSONToFileAsync(value, file) {
 }
 ```
 
-Or you import the module as a wildcard, with resulting aesthetics similar to
-using `JSON.stringify` itself:
-
-```js
-import * as StreamingJSON from "@jswalden/streaming-json";
-
-async function writeAsJSONToFileAsync(value, file) {
-  for (const frag of StreamingJSON.stringify(value, null, "  ")) {
-    await file.write(frag);
-  }
-}
-```
-
 `stringify` implements JSON stringification where it's undesirable (or
 impossible because the entire stringification is too large to represent as a JS
 string or in memory) to compute the entire JSON string at once.  It accepts the
 same arguments as `JSON.stringify` (albeit with narrower types to make clearer
-code).  It returns an iterator that yields successive fragments of the overall
-JSON stringification.[^between-emits]
+code).  It returns an iterable iterator that yields successive fragments of the
+overall JSON stringification.[^between-emits]
 
 [^between-emits]: If the object graph being stringified is modified between
 calls to the iterator's `next()` function, stringification behavior will change
