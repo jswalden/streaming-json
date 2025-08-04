@@ -32,8 +32,18 @@ jobs:
         env:
           CI: true
           NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Publish docs
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload new docs
+        id: upload-docs
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+          path: ./docs
+  deploy-docs:
+    environment:
+      name: github-pages
+      url: ${{ steps.upload-docs.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: on-release-published
+    steps:
+      - name: Deploy new docs to Github Pages
+        id: deploy-docs-step
+        uses: actions/deploy-pages@v4
