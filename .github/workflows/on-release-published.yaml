@@ -26,11 +26,12 @@ jobs:
           if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
             echo "No NPM token"
           else
+            yarn config set npmAuthToken "$NPM_AUTH_TOKEN"
             yarn npm publish --access=public
           fi
         env:
           CI: true
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish docs
         uses: peaceiris/actions-gh-pages@v4
         with:
