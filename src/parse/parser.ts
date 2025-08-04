@@ -9,10 +9,16 @@ import { ReflectApply } from "../stdlib/reflect.js";
 import { StringCharCodeAt, StringFromCharCode, StringSlice, ToString } from "../stdlib/string.js";
 import { HexDigitToNumber, IsAsciiDigit, Unicode } from "../utils/unicode.js";
 
-interface JSONObject {
+/**
+ * A type broadly characterizing all JSON-compatible objects that are not
+ * arrays.
+ */
+export interface JSONObject {
   [key: string]: JSONValue | undefined;
 };
-type JSONArray = JSONValue[];
+
+/** A type broadly characterizing all JSON arrays. */
+export type JSONArray = JSONValue[];
 
 /**
  * A type broadly describing all values that can be serialized to JSON text.
@@ -668,11 +674,10 @@ export class StreamingJSONParser {
    * as the value `unfiltered`.
    *
    * Then apply `reviver` to `unfiltered` (and recursively to its properties and
-   * elements) exactly as
-   * [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse)
-   * would do if it were passed `reviver` and the concatenation of fragments
-   * passed to this parser, and return the value `JSON.parse` would return
-   * (which will be the result returned by the outermost call of `reviver`).
+   * elements) exactly as {@link JSON.parse} would do if it passed `reviver` and
+   * the concatenation of fragments passed to this parser, and return the value
+   * {@link JSON.parse} would return (which will be the result returned by the
+   * outermost call of `reviver`).
    *
    * @throws
    *   `Error` if parsing was already `done()`.

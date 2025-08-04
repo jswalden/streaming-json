@@ -1,0 +1,38 @@
+name: on-release-published
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  on-release-published:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Prepare build
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn build
+        env:
+          CI: true
+      - name: Publish to NPM
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "No NPM token"
+          else
+            yarn npm publish --access=public
+          fi
+        env:
+          CI: true
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish docs
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs

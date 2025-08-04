@@ -515,10 +515,11 @@ class StringifyGenerator {
 
 /**
  * Create an iterable iterator over successive fragments of the JSON
- * stringification of a value as if by `JSON.stringify(value, replacer, space)`.
- * Fragments are iterated until the entire stringification has been returned.
- * Where fragment boundaries occur is explicitly not defined: do not attempt to
- * infer or rely upon boundary locations.
+ * stringification of a value, as if {@link JSON.stringify} had been passed
+ * `value`, `replacer`, and `space` and then were returning successive slices of
+ * the result.  Fragments are iterated until the entire stringification has been
+ * returned.  Where fragment boundaries occur is explicitly not defined: do not
+ * attempt to infer or rely upon boundary locations.
  *
  * If the incremental stringification operations performed to iterate the next
  * fragment throw an exception, that exception will propagate to the caller.

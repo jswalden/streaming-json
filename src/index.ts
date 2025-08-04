@@ -8,6 +8,8 @@ export {
 } from "./stringify/stringify.js";
 
 export {
+  type JSONArray,
+  type JSONObject,
   type JSONValue,
   type Reviver,
   StreamingJSONParser,

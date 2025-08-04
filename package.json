@@ -32,10 +32,11 @@
     "watch": "vitest --watch",
     "check-types": "tsc -p tsconfig.json --noEmit",
     "build:esm": "tsc -p tsconfig.esm.json --removeComments --declaration false && tsc -p tsconfig.esm.json --emitDeclarationOnly",
-    "build": "rimraf dist && yarn build:esm",
+    "build": "rimraf dist && rimraf docs && yarn build:esm && yarn docs:html",
     "lint:raw": "eslint",
     "lint": "yarn lint:raw .",
     "knip": "knip",
+    "docs:html": "typedoc",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -59,6 +60,8 @@
     "lint-staged": "~16.1.2",
     "rimraf": "~6.0.1",
     "type-testing": "~0.2.0",
+    "typedoc": "^0.28.9",
+    "typedoc-plugin-mdn-links": "~5.0.7",
     "typescript": "~5.8.3",
     "typescript-eslint": "~8.38.0",
     "vitest": "~3.2.4"

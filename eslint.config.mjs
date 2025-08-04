@@ -172,5 +172,5 @@ export default defineConfig([
   permitLimitedUnpublishedImports(["vitest.config.ts"], ["vitest"]),
 
   // Don't lint generated files.
-  { ignores: ["dist/**"] },
+  { ignores: ["dist/**", "docs/**"] },
 ]);
