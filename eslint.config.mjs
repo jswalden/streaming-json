@@ -169,6 +169,7 @@ export default defineConfig([
 
   // Allow specific unpublished imports in unshipped files.
   permitLimitedUnpublishedImports(["knip.config.ts"], ["knip"]),
+  permitLimitedUnpublishedImports(["typedoc.mjs"], ["markdown-it-footnote"]),
   permitLimitedUnpublishedImports(["vitest.config.ts"], ["vitest"]),
 
   // Don't lint generated files.

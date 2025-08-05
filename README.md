@@ -33,13 +33,13 @@ impossible because the entire stringification is too large to represent as a JS
 string or in memory) to compute the entire JSON string at once.  It accepts the
 same arguments as `JSON.stringify` (albeit with narrower types to make clearer
 code).  It returns an iterable iterator that yields successive fragments of the
-overall JSON stringification.
+overall JSON stringification.[^between-emits]
 
-(If the object graph being stringified is modified between calls to the
+[^between-emits]: If the object graph being stringified is modified between calls to the
 iterator's `next()` function, stringification behavior will change in
 potentially unexpected ways.  You should take care to protect your value being
 stringified from modification during the stringification process to prevent
-confusing behavior.)
+confusing behavior.
 
 Where fragment boundaries are placed is explicitly not defined.  Thus for
 example `stringify(true, null, "")` might successively yield `"t"`, `"ru"`,
@@ -53,8 +53,8 @@ triggers that operation will throw that value.
 As long as type signatures are respected, the stringification performed by
 `stringify` is the same as `JSON.stringify(value, replacer, space)` performs.
 However, one special case must be noted: if `JSON.stringify` would return the
-literal value `undefined` and not a string value, the iterator returned by
-`stringify` will produce no fragments:
+literal value `undefined` and not a string value[^stringify-not-string], the
+iterator returned by `stringify` will produce no fragments:
 
 ```js
 import { stringify } from "@jswalden/streaming-json";
@@ -68,13 +68,13 @@ let frags = [...stringify(value, null, 2)];
 assert(frags.length === 0);
 ```
 
-(`JSON.stringify` returns `undefined` if the `value` passed to it is
-`undefined`, a
+[^stringify-not-string]: `JSON.stringify` returns `undefined` if the `value`
+passed to it is `undefined`, a
 [symbol](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol),
-a callable object \[i.e. `typeof value === "function"`\], or an object whose
+a callable object (i.e. `typeof value === "function"`), or an object whose
 `toJSON` property is a function that returns one of these values.  It also
 returns `undefined` if a `replacer` function is supplied and if `replacer`, when
-invoked for `value`, returns `undefined`, a symbol, or a callable object.)
+invoked for `value`, returns `undefined`, a symbol, or a callable object.
 
 It's incumbent upon users who stringify sufficiently-broad values or use
 sufficiently-uncautious `replacer` functions to appropriately handle no
