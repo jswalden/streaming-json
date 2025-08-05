@@ -1,52 +1,61 @@
-name: on-release-published
+name: On Release Publication
 
 on:
   release:
     types: [released]
 
 jobs:
-  on-release-published:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '18.x'
           registry-url: 'https://registry.npmjs.org'
-      - name: Prepare build
+      - name: Build package
         run: |
           corepack enable
           yarn install --immutable
           yarn build
         env:
           CI: true
+  publish-to-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
       - name: Publish to NPM
         run: |
           if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "No NPM token"
+            echo "No NPM token configured"
           else
-            yarn config set npmAuthToken "$NPM_AUTH_TOKEN"
+            yarn config set npmAuthToken "${{ secrets.NPM_TOKEN }}"
             yarn npm publish --access=public
           fi
         env:
           CI: true
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Upload new docs
-        id: upload-docs
+  create-docs-artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Upload docs artifact
+        id: upload-docs-artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs
-  deploy-docs:
-    needs: on-release-published
+  deploy-docs-artifact:
+    needs: create-docs-artifact
     permissions:
       pages: write
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.upload-docs.outputs.page_url }}
+      url: ${{ steps.upload-docs-artifact.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy new docs to Github Pages
+      - name: Deploy docs artifact to Github Pages
         id: deploy-docs-step
         uses: actions/deploy-pages@v4

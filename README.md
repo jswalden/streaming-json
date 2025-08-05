@@ -4,16 +4,15 @@ This package implements streaming versions of
 [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse)
 and
 [`JSON.stringify`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
-functionality.
+functionality.  Read [the full API documentation](https://jswalden.github.io/streaming-json/)
+or a high-level package overview below.
+
 
 The operations in this package behave consistent with ECMAScript semantics, but
 modifications to various standard-library functionality can interfere with these
 semantics.  (And, of course, user code between iteration operations can perform
 actions that observably disturb the intermediate states dictated by ECMAScript
 semantics.)
-
-[View the full API documentation](https://jswalden.github.io/streaming-json/),
-or read the high-level package overview below.
 
 ## Stringification
 
@@ -73,7 +72,7 @@ assert(frags.length === 0);
 (`JSON.stringify` returns `undefined` if the `value` passed to it is
 `undefined`, a
 [symbol](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol),
-a callable object (i.e. `typeof value === "function"`), or an object whose
+a callable object \[i.e. `typeof value === "function"`\], or an object whose
 `toJSON` property is a function that returns one of these values.  It also
 returns `undefined` if a `replacer` function is supplied and if `replacer`, when
 invoked for `value`, returns `undefined`, a symbol, or a callable object.)
