@@ -1,53 +1,43 @@
-name: On Release Publication
+name: Release Published CI
 
 on:
   release:
     types: [released]
 
 jobs:
-  build:
+  build-release-and-docs-and-publish-to-npm:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '18.x'
           registry-url: 'https://registry.npmjs.org'
-      - name: Build package
+      - name: Build package and docs
         run: |
           corepack enable
           yarn install --immutable
           yarn build
         env:
           CI: true
-  publish-to-npm:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
       - name: Publish to NPM
         run: |
           if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "No NPM token configured"
+            echo "No NPM token secret configured"
           else
             yarn config set npmAuthToken "${{ secrets.NPM_TOKEN }}"
             yarn npm publish --access=public
           fi
         env:
           CI: true
-  create-docs-artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Upload docs artifact
+      - name: Upload new docs artifact
         id: upload-docs-artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs
-  deploy-docs-artifact:
-    needs: create-docs-artifact
+  deploy-docs:
+    needs: [build-release-and-docs-and-publish-to-npm]
     permissions:
       pages: write
       id-token: write
