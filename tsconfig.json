@@ -4,6 +4,7 @@
     "src/**/*.ts",
     "eslint.config.mjs",
     "knip.config.ts",
+    "typedoc.mjs",
     "vitest.config.ts",
     "vitest.extend.ts",
     "vitest.d.ts",

@@ -7,7 +7,6 @@ and
 functionality.  Read [the full API documentation](https://jswalden.github.io/streaming-json/)
 or a high-level package overview below.
 
-
 The operations in this package behave consistent with ECMAScript semantics, but
 modifications to various standard-library functionality can interfere with these
 semantics.  (And, of course, user code between iteration operations can perform
