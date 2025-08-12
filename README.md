@@ -9,9 +9,9 @@ or a high-level package overview below.
 
 The operations in this package behave consistent with ECMAScript semantics, but
 modifications to various standard-library functionality can interfere with these
-semantics.  (And, of course, user code between iteration operations can perform
-actions that observably disturb the intermediate states dictated by ECMAScript
-semantics.)
+semantics.  (And of course user code between `stringify` iteration or
+`add(fragment)` operations can perform actions that alter the intermediate
+states dictated by ECMAScript semantics.)
 
 ## Stringification
 
@@ -122,3 +122,25 @@ creates this condition will throw a `SyntaxError`.  If the fragments aren't
 valid JSON at time `finish()` is called, `finish()` will throw a `SyntaxError`.
 `add(fragment)` and `finish()` may only be called while parsing is incomplete
 and has not fallen into error: after this the parser is no longer usable.
+
+## Known issues
+
+### `stringify` misinterprets boxed primitives from other globals as records
+
+`JSON.stringify` treats boxed primitives, e.g. `new Boolean(false)`, as if they
+were the primitive value.  This happens even for boxed primitives from other
+global objects/realms, e.g. `new (window.open("about:blank").Boolean)(false)`.
+
+It's not possible to detect cross-global boxed primitives without substantially
+slowing down stringifying objects that aren't boxed primitives.[^inefficient]
+Therefore this package's `stringify` function
+[doesn't recognize cross-global boxed primitives as such](https://github.com/jswalden/streaming-json/issues/1)
+and instead interprets them as records of property/value pairs.
+
+[^inefficient]: Boxed primitives can be detected and unboxed, regardless of
+global/realm, using [`Number.prototype.valueOf`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/valueOf)
+and similar: if the object is that kind of boxed primitive, the function call
+returns the primitive value, and if not it throws a `TypeError`.  But an object
+that isn't a boxed primitive would incur exception creation/throwing/catching
+overhead *four times* for `Number`, `String`, `Boolean`, and `BigInt`:
+unacceptable overhead when cross-global objects are likely never used.
